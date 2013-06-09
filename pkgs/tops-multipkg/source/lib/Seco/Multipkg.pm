@@ -12,7 +12,7 @@ BEGIN {
   __PACKAGE__->_accessors(
     startdir      => undef,
     directory     => undef,
-    confdir       => './root/usr/share/multipkg',
+    confdir       => '/usr/share/multipkg',
     info          => undef,
     cleanup       => 0,
     cwd           => undef,
