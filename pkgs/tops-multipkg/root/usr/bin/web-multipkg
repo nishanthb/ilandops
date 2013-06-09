@@ -1,0 +1,81 @@
+#!/usr/bin/perl
+
+use strict;
+use JSON;
+use Getopt::Long;
+
+use constant {
+  VCS_SUBVERSION => 0,
+  VCS_GIT => 1,
+  VCS_MERCURIAL => 2,
+};
+
+Getopt::Long::Configure("bundling"); 
+my $opt = {
+    's' => 'http://multipkg.in',
+};
+
+my %options = (
+    'h|help'      => 'show usage information',
+    's|source'    => 'multipkg admin site url',
+    'v|verbose'   => 'show verbose information',
+);
+
+usage() unless GetOptions( $opt, keys %options );
+my $package = shift;
+my $verbose = '-v' if $opt->{v};
+
+usage() if( $opt->{h} );
+usage() unless( $package );
+
+sub usage
+{
+  print <<EOF;
+
+   Usage: $0 [options] <package>
+   Options:
+    -s, source=s          URL of multipkg admin site
+
+   Examples:
+   multipkg-install multipkg
+   multipkg-install -s http://multipkg.in/ multipkg
+
+EOF
+  exit(0);
+}
+
+sub error 
+{
+   my $msg = shift;
+   print STDERR "ERROR: $msg\n";
+   exit(111);
+}
+
+sub main
+{
+    my $json = qx#curl -s '$opt->{s}/multipkg/api/1/search/?format=json\&name=$package'#;
+    error "admin server error" unless $json;
+
+    my $result = JSON->new->utf8->decode($json);
+    error "package not found" unless $result->{meta}->{total_count} > 0;
+
+    my $package = $result->{'objects'}[0];
+    my @split = split m#/#, $package->{vcs_address};
+    my $name = pop @split;
+    my $base = join "/", @split;
+    $name = join "/", ($name, $package->{vcs_subdir});
+    $name =~ s/\/$//g;
+
+    if ($package->{vcs_type} eq VCS_SUBVERSION) {
+        print("svn-multipkg $verbose -b $base $name\n");
+        system("svn-multipkg $verbose -b $base $name");
+    } elsif ($package->{vcs_type} eq VCS_GIT) {
+        system("git-multipkg $verbose -b $base $name");
+    } elsif ($package->{vcs_type} eq VCS_MERCURIAL) {
+        system("hg-multipkg $verbose -b $base $name");
+    } else {
+        die "UNKNOWN VCS TYPE!";
+    }
+}
+
+main();

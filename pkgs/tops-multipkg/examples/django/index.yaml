@@ -1,0 +1,7 @@
+---
+default:
+  name: python2-django
+  version: 1.5
+  pypi: Django
+  summary: Django
+  python: /home/tops/bin/python

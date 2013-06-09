@@ -1,0 +1,4 @@
+#!/bin/bash
+
+mkdir -p $DESTDIR/usr/{bin,share/man/man1}
+make install BINDIR=$DESTDIR/usr/bin MANDIR=$DESTDIR/usr/share/man/man1

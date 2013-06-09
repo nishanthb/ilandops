@@ -1,0 +1,11 @@
+---
+default:
+  name: tops-perl58
+  summary: Larry Wall's version of PHP.
+  version: '5.8.9'
+  http: http://www.cpan.org/src/5.0/perl-5.8.9.tar.gz
+
+x86_64:
+ nobuild: 1
+ preferarch: i386
+
