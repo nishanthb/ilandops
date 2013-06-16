@@ -1,7 +1,0 @@
-default:
-  name: httpload
-  git: git://github.com/timbunce/http_load.git
-  git-branch: master
-  summary: a http load tester
-  version: 1.0
-
