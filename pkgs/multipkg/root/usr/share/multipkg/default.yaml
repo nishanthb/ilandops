@@ -1,0 +1,15 @@
+default:
+  buildprefix: '/usr/local'
+  prefix: '/'
+  perl: '/usr/bin/perl'
+  python: '/usr/bin/python'
+  version: '0.0001'
+  shebangmunge: 1
+  os_specific: no
+  xfercmd: '/usr/bin/curl -s -o %s %u'
+  git-branch: master
+
+rpm:
+  autoreqprov: no
+  epoch: 20
+
