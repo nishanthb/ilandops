@@ -1,0 +1,9 @@
+---
+default:
+  build: '1'
+  name: daemontools
+  http: 'http://cr.yp.to/daemontools/daemontools-0.76.tar.gz'
+  version: '0.76'
+  release: '1'
+  summary: A collection of tools for managing UNIX services.
+
