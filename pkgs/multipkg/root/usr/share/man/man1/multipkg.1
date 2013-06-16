@@ -4,19 +4,19 @@
 ..
 .TH METAPKG 1
 .SH NAME
-metapkg \- creates RPM, DEB, packages
+multipkg \- creates RPM, DEB, packages
 .SH SYNOPSIS
-.B metapkg
+.B multipkg
 [options] <package directory>
 
-.B metapkg-release
+.B multipkg-release
 <package directory>
 
 .SH DESCRIPTION
 
 .I Metapkg
 is a tool that creates RPM, DEB, packages from its own reasonably
-neutral package definition language.  The metapkg-release program will copy
+neutral package definition language.  The multipkg-release program will copy
 your package to all @METAPKG, build, and release for all platforms.
 
 .SH OPTIONS
@@ -29,10 +29,10 @@ password entry for any ssh, scp, sudo that is required.
 Print output of any intermediate steps taken to produce the package.
 .TP
 .B \-\-list-platforms, \-p
-List the set of platforms metapkg believes represent this machine.
+List the set of platforms multipkg believes represent this machine.
 .TP
 .B \-\-tmpdir, \-t [directory]
-Use this directory instead of /tmp/metapkg.$USER to store temporary files.
+Use this directory instead of /tmp/multipkg.$USER to store temporary files.
 .TP
 .B \-\-capture-permissions, \-c
 Capture the current state packagedir/root's ownerships and permissions into
@@ -54,8 +54,8 @@ below for details.
 .TP
 .B scripts/build
 Used to build a package from source.  This will be run from inside the first
-directory found in the source tarball (i.e., metapkg will cd hello-2.1.1/
-before running build).  A default script at /usr/share/metapkg/scripts/build
+directory found in the source tarball (i.e., multipkg will cd hello-2.1.1/
+before running build).  A default script at /usr/share/multipkg/scripts/build
 will be used if there is none given.
 .TP
 .B scripts/{post.sh,postun.sh,pre.sh,preun.sh}
@@ -70,7 +70,7 @@ will be used that link the service into /service upon installation.
 .TP
 .B patches/
 Files found in this directory will be applied via patch in alpha-sort order.
-Patch will be run from the . directory of the source tarball (i.e., metapkg
+Patch will be run from the . directory of the source tarball (i.e., multipkg
 will NOT cd hello-2.1.1/ before running patch).
 .TP
 .B root/
@@ -88,10 +88,10 @@ script.
 
 .SH PLATFORMS
 
-"platform"s are detected by metapkg by a variety of methods and can be
-inspected via metapkg -p.  For example, on a debian 3.0 host:
+"platform"s are detected by multipkg by a variety of methods and can be
+inspected via multipkg -p.  For example, on a debian 3.0 host:
 
-$ metapkg -p
+$ multipkg -p
 
 Platforms recognized on this system: linux debian debian-3.0 i386 deb yst
 
@@ -99,7 +99,7 @@ Additional platforms can be specified on a per-host basis by adding new lines
 to the file /etc/platforms.  All machines are implicitly members of
 the 'default' platform.
 
-Precedence is determined by the order they are reported by metapkg -p; the
+Precedence is determined by the order they are reported by multipkg -p; the
 last items on the list will have their settings chosen over previous settings.
 
 .SH INDEX.YAML
@@ -139,7 +139,7 @@ The version of your package.  Takes a string.
 .TP
 .B dirtransforms
 Takes an array of single-key hashes.  Each hash should map a "from" directory
-to a "to" directory.  Whenever metapkg encounters a file in "from", it will
+to a "to" directory.  Whenever multipkg encounters a file in "from", it will
 install into "to" instead.  This is used most frequently to put redhat's
 /etc/rc.d/init.d/* into /etc/init.d on debian.  See an example below in
 the 'prepcrawl' index.yaml.
@@ -150,13 +150,26 @@ Takes a hash of the form "filename => [ { from => to }, { from2 => to2 } ]".
 Inside the file specified by filename, a text replacement will be done
 changing all "from" to "to" for each array element in the order specified.
 This is mostly used for changing hardcoded strings in files that vary from
-platform to platform.  See an example below in the 'metapkg' index.yaml.
+platform to platform.  See an example below in the 'multipkg' index.yaml.
+
+.TP
+.B buildprefix
 
 .TP
 .B cpan-module
 
 
 .SH EXAMPLES
+
+
+.TP
+.B tops-nginx12/index.yaml
+default:
+  name: tops-nginx12
+  summary: tops nginx a web service
+  version: '1.2.9'
+  http: http://nginx.org/download/nginx-1.2.9.tar.gz
+  buildprefix: /home/tops/nginx12
 
 .TP
 .B hello/index.yaml
@@ -195,9 +208,9 @@ deb:
     - {from : 'etc/rc.d/' , to : 'etc/'
 
 .TP
-.B metapkg/index.yaml
+.B multipkg/index.yaml
 default:
-  name: metapkg
+  name: multipkg
   requires:
     - ruby
   version: 0.2.0
