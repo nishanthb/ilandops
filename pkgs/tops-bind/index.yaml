@@ -1,0 +1,8 @@
+---
+default:
+  name: tops-bind
+  summary:  Domain Name System (DNS) protocols for the Internet
+  version: '9.9.3'
+  release: 'P1'
+  http: http://source.corp.tbops.net/bind-9.9.3-P1.tar.gz
+  buildprefix: /home/tops
