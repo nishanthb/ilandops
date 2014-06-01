@@ -1,7 +1,0 @@
----
-default:
-  name: tops-bind-chroot
-  summary: A chroot runtime environment for the ISC BIND DNS server, named for tops
-  version: '9.9.3'
-  release: 'P1'
-  buildprefix: /home/tops
