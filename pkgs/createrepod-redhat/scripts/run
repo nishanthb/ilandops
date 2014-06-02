@@ -1,0 +1,11 @@
+#!/bin/sh
+
+exec 2>&1
+
+repo_path='/home/dl/repo/rhel6'
+
+while true
+do
+    sleep 2
+    /usr/bin/createrepo --update -q $repo_path
+done
