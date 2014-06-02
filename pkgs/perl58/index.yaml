@@ -4,6 +4,8 @@ default:
   summary: Larry Wall's version of PHP.
   version: '5.8.9'
   http: http://zhouchang.net/dl/misc/perl-5.8.9.tar.gz
+  release: 1
+
 #  http: http://www.cpan.org/src/5.0/perl-5.8.9.tar.gz
 
 x86_64:
