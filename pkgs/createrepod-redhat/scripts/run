@@ -7,7 +7,7 @@ intval=30
 
 while true
 do
-    echo "sleeping 2 sec & then createrepo"
-    sleep $intval
+    echo "sleeping $intval sec & then createrepo"
     /usr/bin/createrepo --update $repo_path
+    sleep $intval
 done
