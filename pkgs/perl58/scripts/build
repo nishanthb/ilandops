@@ -1,7 +1,8 @@
 #!/bin/sh
 
-./Configure -Dprefix='/home/tops' -Accflags='-DAPPLLIB_EXP=\"/home/tops/lib/perl5/site_perl\"' -d -e
+./Configure -Dprefix='/usr/local' -Accflags='-DAPPLLIB_EXP=\"/usr/local/lib/perl5/site_perl\"' -Alibs="-lm -lrt"  -d -e
+#./Configure -Dprefix='/usr/local' -Accflags='-DAPPLLIB_EXP=\"/usr/local/lib/perl5/site_perl\"' -d -e
 make 
-mkdir -p $DESTDIR/home/tops
+mkdir -p $DESTDIR/usr/local
 make install DESTDIR=$DESTDIR
 
