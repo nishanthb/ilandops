@@ -3,10 +3,11 @@
 exec 2>&1
 
 repo_path='/home/dl/repo/rhel6'
+intval=30
 
 while true
 do
     echo "sleeping 2 sec & then createrepo"
-    sleep 30
+    sleep $intval
     /usr/bin/createrepo --update $repo_path
 done
