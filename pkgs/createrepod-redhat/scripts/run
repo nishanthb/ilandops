@@ -6,6 +6,7 @@ repo_path='/home/dl/repo/rhel6'
 
 while true
 do
+    echo "sleeping 2 sec & then createrepo"
     sleep 2
-    /usr/bin/createrepo --update -q $repo_path
+    /usr/bin/createrepo --update $repo_path
 done
