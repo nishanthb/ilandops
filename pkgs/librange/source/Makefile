@@ -11,7 +11,7 @@ LDPATH = -L/usr/local/lib/ocaml/site-lib/pcre/ -L/usr/local/lib -L/usr/lib  -L/u
 
 
 librange.so: camlcode.o librange.o 
-	ld -Bsymbolic -shared --whole-archive -o librange.so camlcode.o librange.o /usr/local/lib/ocaml/libunix.a /usr/local/lib/ocaml/libasmrun.a /usr/local/lib/ocaml/site-lib/pcre/libpcre_stubs.a -L/home/tops/lib  /home/tops/lib/libpcre.a  -lm  -ldl
+	ld -Bsymbolic -shared --whole-archive -o librange.so camlcode.o librange.o /usr/local/lib/ocaml/libunix.a /usr/local/lib/ocaml/libasmrun.a /usr/local/lib/ocaml/site-lib/pcre/libpcre_stubs.a -L/usr/local/lib  /usr/local/lib/libpcre.a  -lm  -ldl
 
 install:
 	mkdir -p $(DESTDIR)/usr/include/ $(DESTDIR)/usr/lib/
