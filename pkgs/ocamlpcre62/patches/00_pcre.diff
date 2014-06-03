@@ -1,0 +1,11 @@
+diff -urN ocamlpcre62-6.2.5.orig/OCamlMakefile ocamlpcre62-6.2.5/OCamlMakefile
+--- ocamlpcre62-6.2.5.orig/OCamlMakefile     2012-05-30 15:28:18.002909225 +0800
++++ ocamlpcre62-6.2.5/OCamlMakefile  2012-05-30 15:29:16.580846016 +0800
+@@ -1123,6 +1123,7 @@
+
+ %.$(EXT_OBJ):  %.c
+                        $(OCAMLC) -c -cc "$(CC)" -ccopt "$(CFLAGS) \
++                               -fPIC \
+                                $(CPPFLAGS) $(CPPFLAGS_WIN32) \
+                                $(CFLAGS_WIN32) $(CINCFLAGS) $(CFLAG_O)$@ " $<
+ 

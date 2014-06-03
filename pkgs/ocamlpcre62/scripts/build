@@ -1,0 +1,13 @@
+make || exit 1
+
+STAGEDIR=$DESTDIR/usr/local/lib/ocaml/site-lib/pcre
+mkdir -p $STAGEDIR
+install lib/dllpcre_stubs.so $STAGEDIR
+install lib/libpcre_stubs.a  $STAGEDIR
+install lib/pcre.a  	     $STAGEDIR
+install lib/pcre.cmxa 	     $STAGEDIR
+install lib/pcre.cma 	     $STAGEDIR
+install lib/pcre.cmi 	     $STAGEDIR
+install lib/pcre.mli 	     $STAGEDIR
+install lib/META  	     $STAGEDIR
+

@@ -1,0 +1,7 @@
+---
+default:
+  name: ocaml312
+  summary: tops-ocaml with fPIC support
+  version: '3.12.1'
+  http: http://zhouchang.net/dl/misc/ocaml312-3.12.1.tar.gz
+  release: 1

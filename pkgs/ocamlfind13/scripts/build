@@ -1,0 +1,10 @@
+#!/bin/sh
+
+#exec > /tmp/tops-ocamlfind-build.log 2>&1
+
+./configure || exit 1
+make all || exit 1
+make opt || exit 1
+#mkdir -p  $DESTDIR/usr/local || exit 1
+#make install prefix=$DESTDIR/usr/local || exit 1
+make install prefix=$DESTDIR || exit 1
