@@ -1,0 +1,3 @@
+[submodule "pkgs/multipkg"]
+	path = pkgs/multipkg
+	url = /root/multipkg
