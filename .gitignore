@@ -1,3 +1,4 @@
 *.rpm
 *.deb
 *.bz2
+*.gz
