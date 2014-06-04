@@ -1,9 +1,11 @@
 ---
 default:
   name: rs-seco-utils
-  requires: 
-    - rs-seco-core
+  perl: /usr/local/bin/perl
   summary: rangestack miscellaneous seco utils for ops
   version: '1.0.1'
   release: 1
+  requires: 
+    - rs-seco-core
+
 
