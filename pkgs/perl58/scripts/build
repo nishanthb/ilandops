@@ -1,8 +1,0 @@
-#!/bin/sh
-
-./Configure -Dprefix='/usr/local' -Accflags='-DAPPLLIB_EXP=\"/usr/local/lib/perl5/site_perl\"' -Alibs="-lm -lrt"  -d -e
-#./Configure -Dprefix='/usr/local' -Accflags='-DAPPLLIB_EXP=\"/usr/local/lib/perl5/site_perl\"' -d -e
-make 
-mkdir -p $DESTDIR/usr/local
-make install DESTDIR=$DESTDIR
-

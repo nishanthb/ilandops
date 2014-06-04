@@ -49,7 +49,7 @@ let get_cluster_file cluster =
   let alt = !range_altpath in
   let locations = [alt ^ "/" ^ cluster ^  "/tools/conf/nodes.cf";
                    alt ^ "/" ^ cluster ^ "/nodes.cf";
-                   "/home/tops/tools/conf/" ^ cluster ^ "/nodes.cf";
+                   "/usr/local/rangestack/tools/conf/" ^ cluster ^ "/nodes.cf";
                    "/usr/local/gemclient/" ^ cluster ^ "/nodes.cf"] in
     List.find file_exists locations
 
@@ -58,7 +58,7 @@ let ignore_clusters_file () =
   let locations = [
     alt ^ "/all/tools/conf/IGNORE";
     alt ^ "/all/IGNORE";
-    "/home/tops/tools/conf/all/IGNORE"] in
+    "/usr/local/rangestack/tools/conf/all/IGNORE"] in
     List.find file_exists locations
 
 (* Dirs to ignore for whoismycluster *)
@@ -92,7 +92,7 @@ let get_vips_file cluster =
   let alt = !range_altpath in
   let locations = [ alt ^ "/" ^ cluster ^ "/tools/conf/vips.cf";
                     alt ^ "/" ^ cluster ^ "/vips.cf";
-                    "/home/tops/tools/conf/" ^ cluster ^ "/vips.cf"] in
+                    "/usr/local/rangestack/tools/conf/" ^ cluster ^ "/vips.cf"] in
     List.find file_exists locations
 
 (* create a set with the vips for a given cluster *)
@@ -356,7 +356,7 @@ and cluster_hash lst = match !cluster_hash_memo with
 (* TODO use alt_path *)
 and all_clusters =
   memoize (fun () ->
-      let dir = "/home/tops/tools/conf" in
+      let dir = "/usr/local/rangestack/tools/conf" in
       List.filter interesting_dir (get_cluster_dirs dir))
 and get_all_clusters nodes =
   let cl = all_clusters.get() in

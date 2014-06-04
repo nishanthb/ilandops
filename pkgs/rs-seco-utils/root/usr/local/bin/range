@@ -1,0 +1,60 @@
+#!/usr/local/bin/perl
+#
+use warnings 'all';
+use strict;
+use Seco::AwesomeRange ':all';
+use Getopt::Long;
+
+my $altpath="/home/tops/tools/conf";
+range_set_altpath($altpath);
+
+#want_warnings(1);
+
+my ($help, $count, $expand);
+my ($level, $sep) = (9, ',');
+GetOptions(
+    "help" => \$help,
+    "count" => \$count, 
+    "expand" => \$expand, 
+    "level=i" => \$level, 
+    "separator=s" =>\$sep) or
+    usage();
+
+usage() unless @ARGV;
+usage() if $help;
+
+my $range = join(" ", @ARGV);
+my @nodes;
+if ($range eq '-') {
+    push @nodes, sorted_expand_range($_) while <STDIN>;
+} else {
+    @nodes = sorted_expand_range($range);
+}
+
+if ($count) {
+    print scalar @nodes, "\n";
+} else {
+    die "No nodes specified\n" unless @nodes;
+    if ($expand) {
+        print join("\n", @nodes);
+        print "\n";
+    } else {
+        print compress_range({ separator => $sep,
+            nodes => \@nodes,
+            level => $level,
+        }), "\n";
+    }
+}
+
+sub usage {
+    print <<EOT;
+$0 [options] <range>
+
+Where options are:
+    -c         | --count: Only display the number of elements in the result set
+    -e         | --expand: Print one node per line
+    -l <level> | --level=N: compression level -> default 9
+    -s <sep>   | --sep=", ": separator
+EOT
+    exit(1);
+}

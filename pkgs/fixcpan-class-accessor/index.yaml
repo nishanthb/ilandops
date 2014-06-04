@@ -1,0 +1,28 @@
+---
+default:
+  name: fixcpan-class-accessor
+  cpan-module: Class::Accessor
+  #perl: /usr/local/bin/perl
+  summary: "CPAN Class::Accessor"
+  version: 0.30
+  release: 1
+redhat:
+  builds:
+    - fixcpan-class-accessor
+    - cpan-class-accessor
+debian:
+  # Do these in name only. Complete no-op
+  meta: 1
+  builds:
+    - fixcpan-class-accessor
+
+fixcpan-class-accessor:
+# Dummy - fixcpan  has this module already
+  name: fixcpan-class-accessor
+  perl: /usr/local/bin/perl
+  meta: 1
+cpan-class-accessor:
+  name: cpan-class-accessor
+  perl: /usr/bin/perl
+  meta: 1
+

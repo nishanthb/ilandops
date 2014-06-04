@@ -1,0 +1,9 @@
+---
+default:
+  name: rs-seco-utils
+  requires: 
+    - rs-seco-core
+  summary: rangestack miscellaneous seco utils for ops
+  version: '1.0.1'
+  release: 1
+

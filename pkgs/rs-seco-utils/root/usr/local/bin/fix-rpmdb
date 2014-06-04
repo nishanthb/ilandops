@@ -1,0 +1,46 @@
+#!/bin/bash
+[ $UID -ne 0 ] && echo "Danger!!!!! This application needs 'root' privileges." && exit 2
+parttern='^(rpm|rpmq|yum)$'
+#parttern='^gaoyang-test.sh$'
+PGREP='/usr/bin/pgrep'
+BROKEN='/usr/local/gemclient/.yum_broken'
+
+function time_delta(){
+    pid=$1
+    my_stime=$(cat /proc/$$/stat|cut -d ' ' -f 22)
+    stime=$(cat /proc/$pid/stat|cut -d ' ' -f 22)
+    printf "%.0f\n" $(echo "scale=2; ($my_stime - $stime)/100" | bc)
+}
+
+function killPid() {
+    local pids=$1
+    for pid in $pids
+    do
+       echo "killing pid delta time: $pid -> $(time_delta $pid)" >&2
+       [ $(time_delta $pid) -ge 600 ] && kill -9 ${pid}
+       echo "killed pid: $pid" >&2
+    done
+    sleep 2
+    local num=$($PGREP $parttern|wc -l)
+    echo $num
+}
+
+rm -f $BROKEN
+pids=$($PGREP $parttern)
+#echo "pid list: $pids" >&2
+[ -z "$pids" ] && echo "Not found $parttern process." && exit 0
+
+num=$(killPid "$pids")
+#echo "num:" $num
+if [ $num -eq 0 ]
+then
+    /bin/rm -f /var/lib/rpm/__db* &> /dev/null
+    yum clean rpmdb
+    echo "rpmdb cleaned up"
+else
+    echo "ERROR: Cannot clean up $parttern process."
+    echo "ERROR: Touching $BROKEN ..."
+    touch $BROKEN
+    exit 1
+fi
+exit 0

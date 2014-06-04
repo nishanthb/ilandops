@@ -1,0 +1,96 @@
+#!/home/tops/bin/python
+# -*- coding: utf-8 -*-
+import sys, os, re 
+from optparse import OptionParser
+import json
+import urllib, urllib2
+
+DNSCHECK_SERVER='dnscheck.taobao.org'
+CHECK_API='http://%(server)s:9999/check?domain=%%(domain)s'%dict(server=DNSCHECK_SERVER)
+BIND_API='http://%(server)s:9999/bind?domain=%%(domain)s'%dict(server=DNSCHECK_SERVER)
+
+RED = '\033[91m'
+GREEN = '\033[92m'
+YELLOW = '\033[93m'
+ENDC = '\033[0m'
+
+def json_encode(s):
+    return json.dumps(s, separators=(',',':'))
+
+def json_decode(s):
+    return json.loads(s)
+
+def submit(url, data=None, method="GET"):
+    opener = urllib2.build_opener(urllib2.HTTPHandler)
+    if data:
+        debug_data = "-d '%s'" % data
+    else:
+        debug_data = ''
+    debug_info = "DEBUG: curl -X %(method)s %(data)s '%(url)s'" % dict(
+        method=method,
+        data=debug_data,
+        url=url
+    )
+    try:
+        request = urllib2.Request(url, data)
+        request.get_method = lambda: method
+        content = opener.open(request).read()
+    except urllib2.HTTPError as e:
+        content = e.read()
+        print debug_info.encode('utf-8')
+    except urllib2.URLError as e:
+        print u'Error: 无法连接服务器！'
+        print debug_info.encode('utf-8')
+        sys.exit()
+    return content
+
+def check(domain):
+    ret = submit(CHECK_API % dict(domain=domain), method="GET")
+    ret = json_decode(ret)
+    ret = ret[0]
+    if ret['success']:
+        print GREEN + ret['message'].encode('utf-8') + ENDC
+    else:
+        if ret['message'].find('*') < 0:
+            print RED + ret['message'].encode('utf-8') + ENDC
+        else:
+            print YELLOW + ret['message'].encode('utf-8') + ENDC
+
+def bind(domain):
+    ret = submit(BIND_API % dict(domain=domain), method="GET")
+    ret = json_decode(ret)
+    ret = ret[0]
+    print '\n;;BIND ANSWER(%s):' % domain
+    if ret['success']:
+        for r in ret['result']:
+            msg = '%s\t%s\t%s\t%s' % (r['name'],r['ttl'],r['type'],r['data'])
+            print GREEN + msg.encode('utf-8') + ENDC
+    else:
+        print RED + ret['error'].encode('utf-8') + ENDC
+
+def main():
+    usage = "usage: %prog [options] domain_name"
+    parser = OptionParser(usage, version="%prog v1.0")
+    parser.add_option("-c", "--check", dest="check", 
+                      action="store_true",
+                      help="check domain is or isn\'t use.")
+    parser.add_option("-b", "--bind", dest="bind", 
+                      action="store_true",
+                      help="display domain configuring on named.conf")
+    parser.add_option("-f", "--file", dest="filename", 
+                      help="(TODO)read domain list from file.")
+    (options, args) = parser.parse_args()
+    if options.check or options.bind:
+        if len(args) < 1:
+            parser.error('wrong number of arguments.')
+        if options.check:
+            for domain in args:
+                check(domain)
+        if options.bind:
+            for domain in args:
+                bind(domain)
+    else:
+        parser.print_help()
+
+if __name__ == '__main__':
+    main()

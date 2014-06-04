@@ -1,0 +1,134 @@
+#!/usr/local/bin/perl -w
+use POSIX qw(tzset);
+use strict;
+
+=head1 check-if-sensitive-time
+
+This script will check /etc/gemstonehints for a specified label.
+If unspecified, it defaults to "sensitive".  The hints file
+will tell the script what times of day are sensitive; other applications
+may decide to defer processing during sensitive times.  
+
+The initial use for this script is to keep ops automation idled 
+during peak hours, on SATA based proxy servers that are sensitive
+to disk I/O.
+
+Each entry should start with a time zone; and possibly either 
+a regex or range expression (see examples) to restrict the use of this line. 
+Multiple time ranges may be specified on a single line if it helps.
+
+time zones and ranges or regexes should be listed BEFORE the time.
+the parser is primitive.
+
+Example /etc/gemstonehints entries:
+
+ sensitive=US/Pacific 0900-1500
+ sensitive=GMT 0900-1500
+ sensitive=Japan /^kp107/ 0900-0100
+ sensitive=Japan range:%idpproxy_yahoojp1  0900-0100
+
+=item EXIT VALUES
+
+ Exit 0 if we're in a safe (unmatched) time.
+ Exit 1 if unsafe (matched).
+
+=item EXAMPLE USAGE
+
+To only do something if it is safe:
+
+ check-if-sensitive-time && exec whatever.real
+
+To abort the current script (with a sleep) if unsafe:
+
+ check-if-sensitive-time || exec sleep 300
+
+=cut
+
+
+my $label = "sensitive";
+
+$label = shift @ARGV if (@ARGV);
+print "Will check /etc/gemstonehints for '$label='\n" if ( -t STDOUT );
+
+my $time = time;
+my $hostname = `hostname`;chomp $hostname;
+
+while (<DATA>) {
+    chomp;
+    check_sensitive($_);
+}
+
+open( HINTS, "</etc/gemstonehints" );
+while (<HINTS>) {
+    chomp;
+    if (/^${label}=(.*)$/) {
+        check_sensitive($1);
+    }
+} ## end while (<HINTS>)
+
+exit 0;
+
+
+sub check_sensitive {
+    my ($s)     = @_;
+    my (@s)     = split( /[\s+,]/, $s );
+    my $tz      = "GMT";
+    my $inrange = 1;
+    foreach (@s) {
+        if (/^(\d?\d:?\d\d)-(\d?\d:?\d\d)$/) {
+            next unless ($inrange);
+            my ( $a, $b ) = ( $1, $2 );
+            $a =~ s/://;
+            $b =~ s/://;
+            $ENV{TZ} = $tz;
+            tzset();
+            my ( $sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst ) =
+              localtime($time);
+            my $c = sprintf( '%02i%02i', $hour, $min );
+
+            if ( $a < $b ) {
+                matched( $c, $_, @_ ) if ( ( $a <= $c ) && ( $c <= $b ) );
+            } else {
+
+                # 2300-0100
+                matched( $c, $_, @_ ) if ( ( $c >= $a ) || ( $c <= $b ) );
+            }
+            next;
+        } ## end if (/^(\d?\d:?\d\d)-(\d?\d:?\d\d)$/)
+        if (/^range:(.*)/) {
+            my $range = $1;
+            eval " use Seco::AwesomeRange qw(:common)";
+            eval " use Seco::Range qw(:common)" if ($@);
+            if ($@) {
+                warn
+                  "Unable to load Seco::AwesomeRange or Seco::Range, skipping check @_: : $@\n";
+                return;
+            } else {
+                my @range = expand_range( $range .  ",&$hostname" );
+                $inrange = scalar(@range);
+            }
+            next;
+        } ## end if (/^range:(.*)/)
+        if (m#^/(.*)/$#) {  
+            my $regex = $1;
+            $inrange =0;
+            $inrange++ if ($hostname =~ m/$regex/i);
+            next;
+        } 
+        if (-f "/usr/share/zoneinfo/$_") {
+            $tz = $_;
+            next;
+        }
+    } ## end foreach (@s)
+
+} ## end sub check_sensitive
+
+sub matched {
+    my ( $c, $ab, @test ) = @_;
+    print "INFO: Current time $c matched $ab during test: @test\n"
+      if ( -t STDOUT );
+    print "INFO: Exit 1 (sensitive time)\n" if ( -t STDOUT );
+    exit 1;
+} ## end sub matched
+
+__END__

@@ -1,0 +1,7 @@
+#!/bin/sh
+
+$PERL Makefile.PL < /dev/null
+make || exit 1
+make install DESTDIR=$DESTDIR || exit 1
+find $DESTDIR -name perllocal.pod -type f -exec rm \{\} \;
+

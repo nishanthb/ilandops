@@ -1,0 +1,217 @@
+#!/usr/local/bin/perl -w
+
+#
+# rexec: runs a command with options 'over rsync'.  
+# run with no options for usage information.
+#
+# pdm@inktomi.com
+#
+# $Id: //depot/root/main/usr/local/bin/rexec#4 $
+#
+
+use strict;
+use Getopt::Long;
+
+
+use vars qw( 
+	%cmdopts
+	$cmd
+	$local
+	$tmp
+	$noexec
+	$verbose
+	$debug
+	$nocache
+	$failuredays
+);
+
+
+
+$|++;
+
+my $rsync = "/usr/bin/rsync";
+my $expire_time = "14";
+
+# allow the program we're running to have its own options
+Getopt::Long::Configure("pass_through") ;
+
+if (! GetOptions (\%cmdopts,  "rexec_n", "rexec_v","rexec_d","rexec_nocache","rexec_failuredays=s")) { usage();}
+
+for (keys %cmdopts) {
+    /^rexec_n$/ && do { $noexec = 1;  } ;
+    /^rexec_d$/ && do { $debug = 1;  } ;
+    /^rexec_nocache$/ && do { $nocache = 1;  } ;
+    /^rexec_failuredays$/  && do { $failuredays = $cmdopts{rexec_failuredays}; } ;
+    /^rexec_v$/ && do { $rsync .= " -v";  $verbose = 1 ;  } ;
+}
+
+
+if ($#ARGV < 0) { usage(); } 
+
+#
+# locate a tmp dir
+#
+
+if (-w "/home/admin/tmp" ) {
+	$tmp = "/home/admin/tmp/";
+}
+else {
+
+	if ( mkdir "/home/admin/tmp","0777" ) {
+		chmod 0777,"/home/admin/tmp"; 
+		$tmp = "/home/admin/tmp/";
+	}
+	else {
+		$tmp = "/tmp/";
+	}
+}
+
+
+$failuredays ||= 0;
+#
+#
+# run some cleanup steps to keep the dir from being cluttered
+#
+
+my %access_times  ;
+chdir ($tmp);
+opendir (DIR, $tmp) ;
+my @files = grep { /^rexec-.*/ && do { $access_times{$_}= -A $_ } } readdir (DIR) ;
+closedir (DIR);
+foreach (@files) {
+	if ($access_times{$_} > $expire_time) {
+		unlink($_);
+	}
+}
+
+
+
+
+$cmd = join(" ",@ARGV);
+
+$cmd =~ m/([^\s]+(?:rsync|::)[^\s]+)(.*)/ ;
+my $rsync_path = $1 ;
+my $cmd_opts = $2 ;
+
+
+if (! ( (defined $rsync_path) || (defined $cmd_opts) )) {
+	croak( "ERROR: Can't determine where to get binary") ;
+}
+
+print "rsync_path: $rsync_path\n" if defined $debug;
+print "options   : $cmd_opts\n" if defined $debug;
+
+$rsync_path =~ m#/([^/]+)$# ;
+my $rsync_cmd = $1 ;
+
+my $rsync_bin =  $tmp . "rexec-". $rsync_cmd . ".$>" ;
+
+if (! defined $rsync_bin ) {
+	croak("ERROR: Can't determine where to put binary");
+}
+
+my $command = "$rsync -a $rsync_path $rsync_bin";
+if ($noexec) { print "# $command\n\n"; }
+else {
+        if ($verbose) { print "# $command\n"; }
+        system($command) ;
+        if ($? != 0) {
+            my $exitcode = $? >> 8 ;
+			if (-C $rsync_bin < $failuredays) {
+
+			format = 
+WARNING: ^<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< ~~
+$_
+.
+
+$_ =  "Could not fetch binary from $rsync_path $rsync_bin is less than \$failuredays($failuredays) days old. Running $rsync_bin as fall through.";
+write;
+			}
+			else {	
+        		exit($exitcode);
+			}
+        }
+    }
+
+
+chmod 0777,$rsync_bin; 
+
+
+
+run_cmd("$rsync_bin $cmd_opts");
+
+
+
+if ( (! $noexec) && (defined $nocache) ) {
+	unlink($rsync_bin)
+}
+
+
+
+
+
+sub run_cmd {
+
+    my ($command) = @_;
+
+    if ($noexec) { print "# $command\n\n"; }
+    else {
+        if ($verbose) { print "# $command\n"; }
+        system($command) ;
+        if ($? != 0) {
+            my $exitcode = $? >> 8 ;
+        	exit($exitcode);
+        }
+    }
+
+}
+
+sub usage {
+
+print <<EOM;
+Usage: $0 [local options] rsyncpath [cmd options]
+Local options:
+  -rexec_n       Do not run, just print what would have been done.
+  -rexec_v		 verbose
+  -rexec_d       debug
+  -rexec_nocache Do not cache binary locally
+  -rexec_failuredays N   If for some reason rexec cannot connect to the rsync server or there is a failure in transfer, use the locally cached copy of the program, but only if it is less than this many days old.
+
+Rsync Path:
+  Rsync path should be the location $0 can fetch the binary via
+  rsync.  Example:  accountdb2.cm4::admin/bin/test
+Cmd Options:
+  Can be any number of options to be passed to the binary pulled over
+Notes:
+  You do not need to quote the options or the rsync path. 
+How things work:
+1. $0 attempts to determine a tmp directory on the local machine
+   to store binaries
+   a.  first tries /home/admin/tmp 
+   b.  if it does not exist it attempts to create it
+   c.  if it cannot create it it will fall back to /tmp
+2. $0 will clean up old files in the tmp directory that are older than
+   $expire_time days.  (it only deals with files that have an rexec prefix
+3. $0 will attemp to pull over your binary and store in the tmp
+   directory.  It will store it as rexec-BINARY.userid.  If the file
+   is is cached (ie, already exists and has not been changed) rsync
+   will not retransfer the entire file.  
+4. $0 will then call your command with the options you specified
+   on the command line.
+
+Example:
+# rexec accountdb2.cm4.tbiste.net::admin/bin/test 
+
+EOM
+	exit;
+}
+
+
+
+sub croak {
+	my ($message) = @_;
+
+	print STDERR "$message\n";
+	exit -1;
+}
+

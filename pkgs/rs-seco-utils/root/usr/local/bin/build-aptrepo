@@ -1,0 +1,16 @@
+#!/bin/sh
+
+DIR=$1
+
+PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+
+if [ "$DIR" = "" ]; then
+	echo "No dir provided"
+	exit 1
+fi
+
+cd $DIR
+dpkg-scanpackages . /dev/null | gzip >  Packages.gz
+rm  /var/www/tops/apt/.manifest.md5sum
+generate-md5sum /var/www/tops/apt >  /var/www/tops/apt/.manifest.md5sum
+

@@ -1,0 +1,182 @@
+#!/usr/local/bin/perl -w
+
+use strict;
+use Getopt::Long qw/:config require_order gnu_compat/;
+
+my %opt = ('from=s'       => "Location to sync from, e.g. adminhost::gemserver",
+           'to=s'         => "Directory to sync to",
+           'clean=s'      => "Remove all orphans (does not rsync)",
+           'm|md5'        => "Require /to/.manifest.md5sum to be verified",
+           'o|options=s'  => "Options to pass to rsync [-a --delete --timeout=3600]",
+           'n|noaction'   => "Take to action, only print plan",
+	   'h|help'       => "Display this text" );
+my %o;
+
+usage() unless GetOptions(\%o, keys %opt);
+usage() if($o{h});
+
+usage("Must give an action")
+  unless($o{to} or $o{clean});
+
+$ENV{PATH}="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+
+my $to;
+
+$to = $o{to} if($o{to});
+$to = $o{clean} if($o{clean});
+
+my $current = readlink "$to/current";
+my $previous = readlink "$to/previous";
+
+die "$to/previous links to something with a slash"
+  if(defined($previous) and $previous =~ m#/#);
+die "$to/current links to something with a slash"
+  if(defined($current) and $current =~ m#/#);
+die "$to/previous exists but not $to/current"
+  if(defined $previous and not defined $current);
+
+if($o{clean}) {
+    my $dir;
+    opendir $dir, $to;
+    my @files = readdir $dir;
+    closedir $dir;
+    
+    foreach my $sub (@files) {
+        next if($sub =~ /^\./);
+        next if ($sub eq $current);
+        next if ($sub eq $previous);
+        next unless(-d "$to/$sub");
+        next if(-l "$to/$sub");
+        next unless $sub =~ /^rsync.[\d\.]+$/;
+        
+        print "CLEAN: $to/$sub\n";
+        system('rm', '-rf', "$to/$sub");
+    }
+    
+    exit 0;
+}
+
+usage("Must give locations to rsync from and to")
+  unless($o{from} and $o{to});
+
+my $from = $o{from};
+
+my $newcurrent = "rsync.$$." . time;
+
+die "$newcurrent already exists, what a horrible coincidence"
+  if(-d "$to/$newcurrent");
+
+my @rsyncopts = ();
+@rsyncopts = split / /, $o{o} if defined($o{o});
+@rsyncopts > 0 or @rsyncopts = qw/-a --delete --timeout=3600/;
+
+my @copy = ();
+my @setlive = ();
+my @verify = ();
+my @abort = (['rm', '-rf', "$to/$newcurrent"]);
+
+if($o{m}) {
+    @verify = (['verify-md5sum', "$to/$newcurrent"]);
+}
+
+if(defined($current) and defined($previous)) {
+    @copy = (['cp', '-rl', "$to/$current", "$to/$newcurrent"],
+             ['rsync', @rsyncopts, $from, "$to/$newcurrent"]);
+    @setlive = (['ln', '-sfn', $newcurrent, "$to/current"],
+                ['ln', '-sfn', $current, "$to/previous"],
+                ['rm', '-rf', "$to/$previous"]);
+} elsif(defined($current)) {
+    @copy = (['cp', '-rl', "$to/$current", "$to/$newcurrent"],
+             ['rsync', @rsyncopts, $from, "$to/$newcurrent"]);
+    @setlive = (['ln', '-sfn', $newcurrent, "$to/current"],
+                ['ln', '-sfn', $current, "$to/previous"]);
+} else { # fresh dir
+    @copy = (['mkdir', '-p', $to],
+             ['rsync', @rsyncopts, $from, "$to/$newcurrent"]);
+    @setlive = (['ln', '-sfn', $newcurrent, "$to/current"]);
+}
+
+my @cmds = (@copy, @verify, @setlive);
+
+if($o{n}) {
+    print "@$_\n" for (@cmds);
+    exit 0;
+} else {
+    foreach my $cmd (@copy, @verify) {
+        print "RUN: [@$cmd]\n";
+        system(@$cmd);
+        my $out = $? >> 8;
+        if($out) {
+            foreach my $cmd2 (@abort) {
+                print "ABORT: [@$cmd2]\n";
+                system(@$cmd2);
+            }
+            die "atomic rsync failed: @$cmd exited $out";
+        }
+    }
+
+    foreach my $cmd (@setlive) {
+        print "RUN: [@$cmd]\n";
+        system(@$cmd);
+        my $out = $? >> 8;
+        if($out) {
+            warn "atomic rsync setlive failed: @$cmd exited $out";
+        }
+    }
+}
+
+sub usage {
+    my $msg = shift;
+    $msg = "$msg\n" if($msg);
+    $msg ||= '';
+    
+    print "Usage: $0 [options]\n";
+    
+    my @array;
+    foreach my $key (keys %opt) {
+	my ($left, $right) = split /[=:]/, $key;
+	my ($a, $b) = split /\|/, $left;
+        
+	if($b) {
+	    $left = "-$a, --$b";
+	} else {
+	    $left = "    --$a";
+	}
+        
+	$left = substr($left . (' 'x20), 0, 20);
+	push @array, "$left $opt{$key}\n";
+    }
+    
+    print sort @array;
+    
+    print <<EOT ;
+ 
+    Notes:
+    
+    "to" will be a directory that looks like so:
+    
+    somedir/
+      current -> rsync.21485.1137539326/
+      previous -> rsync.21474.1137539326/
+      rsync.21474.1137539326/
+      rsync.21485.1137539326/
+
+    atomic-rsync will make a new copy to point current at, shuffle previous
+    to point to the previously current directory, and rm -rf the old
+    'previous' directory.
+
+    Make your applications look in somedir/current to see the most current
+    copy of your data.
+
+    To rollback:
+
+    cd somedir
+    ln -sfn `readlink previous` current
+    rm previous
+    rm -rf rsync.whatever-current-used-to-point-to
+EOT
+    
+    die "\nDied: $msg\n" if($msg);
+    die "\n";
+}
+

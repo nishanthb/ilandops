@@ -1,7 +1,7 @@
 ---
 default:
-  name: perl58
-  summary: Larry Wall's version of PHP.
+  name: fixperl
+  summary:  Perl  under /usr/local
   version: '5.8.9'
   http: http://zhouchang.net/dl/misc/perl-5.8.9.tar.gz
   release: 1

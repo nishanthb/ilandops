@@ -1,0 +1,10 @@
+---
+default:
+  name: rs-seco-core
+  summary: rangestack Seco core modules. pure perl Seco::Range 
+  perl: /usr/local/bin/perl
+  version: '1.0.0'
+  release: 1
+  require: 
+    - fixcpan-class-accessor
+    - rs-seco-awesomerange

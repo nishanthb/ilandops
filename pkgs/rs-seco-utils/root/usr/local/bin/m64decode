@@ -1,0 +1,18 @@
+#!/usr/bin/perl
+
+while (<>) {
+	chomp;
+	s/^[ \t]//;
+	foreach (split(/(=[?].*?[?][BQ][?].*?[?]=)/i)) {
+		if (($charset, $encoding, $txt) = /=[?](.*?)[?]([bq])[?](.*?)[?]=/i) {
+			$encoding =~ tr/[BQ]/[bq]/;
+			$charset = 'gbk' if $charset =~ /x-gbk/i or $charset =~ /iso8859/i;
+			open PIPE, "echo '$txt' | base64 -i -d | iconv -f $charset -t utf-8 -c |";
+			$_ = <PIPE>;
+			close PIPE;
+			chomp;
+		}
+		print $_;
+	}
+}
+
