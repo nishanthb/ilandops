@@ -5,6 +5,7 @@ default:
   perl: /usr/local/bin/perl
   version: '1.0.0'
   release: 1
-  require: 
+  requires: 
     - fixcpan-class-accessor
     - rs-seco-awesomerange
+
