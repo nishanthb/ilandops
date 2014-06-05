@@ -1,0 +1,9 @@
+---
+default:
+  name: rs-seco-gemstone
+  summary: modules for gemstone.
+  version: '1.0.0'
+  release: 1
+  requires:
+    - fixperl
+

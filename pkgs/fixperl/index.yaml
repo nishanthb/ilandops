@@ -4,7 +4,7 @@ default:
   summary:  Perl  under /usr/local
   version: '5.8.9'
   http: http://zhouchang.net/dl/misc/perl-5.8.9.tar.gz
-  release: 1
+  release: 2
 
 #  http: http://www.cpan.org/src/5.0/perl-5.8.9.tar.gz
 
