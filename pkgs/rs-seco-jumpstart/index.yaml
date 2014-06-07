@@ -1,0 +1,8 @@
+---
+default:
+  name: rs-seco-jumpstart
+  requires:
+    - fixperl
+  summary: modules and client binaries for jumpstart.
+  version: '1.0.1'
+  release: 1
