@@ -6,7 +6,6 @@ use warnings;
 no warnings 'deprecated';
 
 use constant DB_BACKEND     => "/usr/local/jumpstart/var/jumpstart.sqlite.dat";
-use constant DB_BACKEND_BAK => "/JumpStart/var/jumpstart.sqlite.dat";
 
 use DBI;
 
@@ -24,7 +23,8 @@ sub get_instance {
     $instance->SUPER::new;
 
     $filename ||= DB_BACKEND;
-    $filename = DB_BACKEND_BAK unless -r $filename;
+    die "ERROR: $filename doesn't exist!"
+	unless -r $filename;
 
     $instance->{dbh} =
       DBI->connect("dbi:SQL33t:$filename", "", "",
