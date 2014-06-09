@@ -2,7 +2,7 @@
 default:
   name: fixcpan-class-accessor
   cpan-module: Class::Accessor
-  #perl: /usr/local/bin/perl
+  perl: /usr/local/bin/perl
   summary: "CPAN Class::Accessor"
   version: 0.30
   release: 1

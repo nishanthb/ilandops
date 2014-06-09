@@ -1,0 +1,7 @@
+default:
+  name: fixcpan-dbi
+  cpan-module: DBI
+  perl: /usr/local/bin/perl
+  release: '1'
+#  env:
+#    PERLTEST: no
