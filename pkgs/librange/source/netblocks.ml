@@ -7,7 +7,7 @@ let netmask_colo_memo =
     fun () ->
       let netmask_colo = Hashtbl.create 611 in
       let colo_netmask = Hashtbl.create 37 in
-      let lines = good_lines (read_file "/etc/yst-ip-list") in
+      let lines = good_lines (read_file "/etc/ip-list") in
 
       let rec parse_netblocks lines =
 	match lines with
@@ -19,7 +19,7 @@ let netmask_colo_memo =
 		      let netmask = Netmask.netmask_of_string netmask_str in
 			Hashtbl.add netmask_colo netmask (netmask_str, colo);
 			Hashtbl.add colo_netmask colo netmask_str
-		  | _ -> raise (NetmaskErr ("yst-ip-list: " ^ line))
+		  | _ -> raise (NetmaskErr ("ip-list: " ^ line))
 	    end;
 	      parse_netblocks rest
 	  | [] -> () in

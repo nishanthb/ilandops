@@ -10,10 +10,11 @@ use Seco::Jumpstart::JS_Utils qw/fqdn/;
 use Seco::Jumpstart::DB;
 
 use base 'Seco::Jumpstart::BaseCfg';
-use fields qw/macs opsdb_macs/;
+# use fields qw/macs opsdb_macs/;
+use fields qw/macs/;
 
-use Seco::OpsDB;
-Seco::OpsDB->connect;
+# use Seco::OpsDB;
+# Seco::OpsDB->connect;
 
 {
     my $instance;
@@ -32,7 +33,7 @@ sub new {
     my $self = fields::new($class);
     $self->SUPER::new;
     $self->_parse_ethers($filename);
-    $self->_get_opsdb_macs();
+# $self->_get_opsdb_macs();
     return $self;
 }
 
@@ -63,11 +64,11 @@ sub _parse_ethers {
     $self->{macs} = \%result;
 }
 
-sub _get_opsdb_macs {
-    my $self = shift;
-    my $macs = Seco::OpsDB::Node->getallmacs();
-    $self->{opsdb_macs} = $macs;
-}
+# sub _get_opsdb_macs {
+#     my $self = shift;
+#     my $macs = Seco::OpsDB::Node->getallmacs();
+#     $self->{opsdb_macs} = $macs;
+# }
 
 sub mac {
     my ($self, $node) = @_;
@@ -76,8 +77,9 @@ sub mac {
     my $mac       = $mac_table->{$node};
     return $mac if $mac;
 
-    my $fq_node = fqdn($node);
-    return $self->{opsdb_macs}{$fq_node};
+    # my $fq_node = fqdn($node);
+    # return $self->{opsdb_macs}{$fq_node};
+    return "00:00:00:00:00:00";
 }
 
 1;

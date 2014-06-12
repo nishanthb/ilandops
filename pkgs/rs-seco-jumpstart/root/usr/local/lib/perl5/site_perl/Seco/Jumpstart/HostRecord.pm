@@ -184,11 +184,11 @@ sub save {
 
     unless ($prepared_update) {
         my $update = join(",", map { "$_=?" } @fields_node);
+	print "xxx: $prepared_update $update\n";
         $prepared_update =
           $dbh->prepare("update HostRecords set $update where node = ?");
         $self->{dirty_} = 0;
     }
-
     $prepared_update->execute(@values, $node);
 }
 
@@ -224,6 +224,7 @@ sub AUTOLOAD {
     $name =~ s/.*:://;
     return if $name =~ /DESTROY/;
 
+
     die "ERROR: $name is not a valid HostRecord field"
       unless exists $Seco::Jumpstart::HostRecord::FIELDS{$name};
 
@@ -240,7 +241,7 @@ sub AUTOLOAD {
                 my $node = $self->{node};
                 defined($value) or $value = "UNDEF";
 
-              #print "dirty and modified flags on $node ($new_value, $value)\n";
+		print "xxx:dirty and modified flags on $node ($new_value, $value)\n";
                 $self->{modified_} = 1;
                 $self->{dirty_}    = 1;
 

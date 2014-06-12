@@ -41,7 +41,7 @@ my %valid_settings_ = map { $_ => 1 } qw/
   after-install-command
   pxelinux
   tftp-server
-  sysbuilder
+#  sysbuilder
   /;
 
 sub valid_setting {

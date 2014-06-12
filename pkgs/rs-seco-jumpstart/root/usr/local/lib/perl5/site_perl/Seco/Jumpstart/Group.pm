@@ -155,7 +155,7 @@ sub create_profile {
     print $fh $profile;
     close $fh;
 
-    $yaml{sysbuilder} = $js->get('sysbuilder');
+#    $yaml{sysbuilder} = $js->get('sysbuilder');
     YAML::DumpFile("$filename.yaml", \%yaml);
     return;
 }
@@ -184,10 +184,15 @@ sub create_host_record {
 
     my $js       = $self->{'settings'};
     my $label    = $self->{label};
-    my $boothost = compress_range(expand_range("bh($node),-$node"));
+
+    # my $boothost = compress_range(expand_range("bh($node),-$node"));
+    my $boothost = compress_range(expand_range("^ $node"));
 
     my $ip = get_ip($node);
     my $hr = Seco::Jumpstart::HostRecord->get($node);
+    use Data::Dumper;
+    print Dumper($hr);
+
     $hr->ip($ip);
     $hr->idedisks($js->get('ide-disks'));
     $hr->disks($js->get('scsi-disks'));
@@ -201,6 +206,8 @@ sub create_host_record {
     $hr->label($label);
     $hr->macaddr($self->{ethers}->mac($node));
     $hr->admin($boothost);
+
+    print Dumper($hr);
     $hr->save;
 }
 

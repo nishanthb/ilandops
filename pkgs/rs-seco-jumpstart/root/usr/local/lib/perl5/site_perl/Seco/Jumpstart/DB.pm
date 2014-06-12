@@ -27,7 +27,7 @@ sub get_instance {
 	unless -r $filename;
 
     $instance->{dbh} =
-      DBI->connect("dbi:SQL33t:$filename", "", "",
+      DBI->connect("dbi:SQLite:$filename", "", "",
         { RaiseError => 1, AutoCommit => 0 });
 
     return $instance;
