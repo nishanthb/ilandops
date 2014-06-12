@@ -190,8 +190,8 @@ sub create_host_record {
 
     my $ip = get_ip($node);
     my $hr = Seco::Jumpstart::HostRecord->get($node);
-    use Data::Dumper;
-    print Dumper($hr);
+    #use Data::Dumper;
+    #print Dumper($hr);
 
     $hr->ip($ip);
     $hr->idedisks($js->get('ide-disks'));
@@ -207,7 +207,7 @@ sub create_host_record {
     $hr->macaddr($self->{ethers}->mac($node));
     $hr->admin($boothost);
 
-    print Dumper($hr);
+    #print Dumper($hr);
     $hr->save;
 }
 
