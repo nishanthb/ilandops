@@ -9,7 +9,7 @@ default:
         - ocamlfind13
         - pcre7
 
-x86_64:
+centos:
   dirtransforms:
     - { from : 'usr/lib' , to : 'usr/lib64' }
 
