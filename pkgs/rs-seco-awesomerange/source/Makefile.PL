@@ -10,7 +10,7 @@ WriteMakefile(
     ($] >= 5.005 ?     ## Add these new keywords supported since 5.005
       (ABSTRACT_FROM  => 'lib/Seco/AwesomeRange.pm', # retrieve abstract from module
        AUTHOR         => 'Evan Miller <eam@inktomisearch.com>') : ()),
-    LIBS              => ['-lrange  -lm'], # e.g., '-lm'
+    LIBS              => ['-lrange', ' -lm'], # e.g., '-lm'
     DEFINE            => '', # e.g., '-DHAVE_SOMETHING'
     INC               => '-I.', # e.g., '-I. -I/usr/include/other'
     LINKTYPE => 'dynamic'

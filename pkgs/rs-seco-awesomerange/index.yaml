@@ -8,3 +8,8 @@ default:
   requires:
     - librange
     - fixperl
+
+deb:
+  dirtransforms:
+    - { from : 'usr/lib64' , to : 'usr/lib' }
+

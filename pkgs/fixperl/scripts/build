@@ -1,9 +1,17 @@
 #!/bin/sh
 
-./Configure -des -Dcf_by='Range Stack, Inc.'  -Dcc='gcc' -Dpager='/usr/bin/less -isr' -Duseshrplib -Duselargefiles -Dd_dosuid -Dd_semctl_semun -Di_db -Ui_ndbm -Di_gdbm -Di_shadow -Di_syslog -Accflags='-DAPPLLIB_EXP=\"/usr/local/lib/perl5/site_perl\"' 
-	#-Alibs="-lm -lrt"  #-d -e -s
-#./Configure -Dprefix='/usr/local' -Accflags='-DAPPLLIB_EXP=\"/usr/local/lib/perl5/site_perl\"' -Alibs="-lm -lrt"  -d -e
-#./Configure -Dprefix='/usr/local' -Accflags='-DAPPLLIB_EXP=\"/usr/local/lib/perl5/site_perl\"' -d -e
+#if [ $PLATFORM = "deb" ];then
+#
+#./Configure -des -Dcf_by='Range Stack, Inc.'  -Dcc='gcc' -Dpager='/usr/bin/less -isr' -Duseshrplib -Duselargefiles -Dd_semctl_semun -Di_db -Ui_ndbm -Di_gdbm -Di_shadow -Di_syslog -Accflags='-DAPPLLIB_EXP=\"/usr/local/lib/perl5/site_perl\"'  -Alibs="-lm -lrt -ldl -lgdbm"
+#else
+#
+#./Configure -des -Dcf_by='Range Stack, Inc.'  -Dcc='gcc' -Dpager='/usr/bin/less -isr' -Duseshrplib -Duselargefiles -Dd_semctl_semun -Di_db -Ui_ndbm -Di_gdbm -Di_shadow -Di_syslog -Accflags='-DAPPLLIB_EXP=\"/usr/local/lib/perl5/site_perl\"' 
+#fi
+#	#-Alibs="-lm -lrt"  #-d -e -s
+##./Configure -Dprefix='/usr/local' -Accflags='-DAPPLLIB_EXP=\"/usr/local/lib/perl5/site_perl\"' -Alibs="-lm -lrt"  -d -e
+##./Configure -Dprefix='/usr/local' -Accflags='-DAPPLLIB_EXP=\"/usr/local/lib/perl5/site_perl\"' -d -e
+
+./Configure -des -Dcf_by='Range Stack, Inc.'  -Dcc='gcc' -Dpager='/usr/bin/less -isr' -Duseshrplib -Duselargefiles -Dd_semctl_semun -Di_db -Ui_ndbm -Di_gdbm -Di_shadow -Di_syslog -Accflags='-DAPPLLIB_EXP=\"/usr/local/lib/perl5/site_perl\"'  -Alibs="-lm -lrt -ldl -lgdbm"
 make 
 mkdir -p $DESTDIR/usr/local
 make install DESTDIR=$DESTDIR
