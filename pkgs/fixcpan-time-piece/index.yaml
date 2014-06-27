@@ -1,0 +1,18 @@
+---
+default:
+  name: fixcpan-time-piece
+  cpan-module: Time::Piece
+  perl: /usr/local/bin/perl5.8.9
+  release: 1
+  summary: "CPAN Time::Piece"
+
+#redhat:
+#  builds:
+#    - cpan-time-piece
+#debian:
+#  nobuild: 1
+
+#cpan-time-piece:
+#  name: cpan-time-piece
+#  perl: /usr/bin/perl
+
