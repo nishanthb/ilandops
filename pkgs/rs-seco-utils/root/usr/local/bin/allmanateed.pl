@@ -179,7 +179,7 @@ sub do_fast {
   foreach $cmd (@ARGV)
   {
           my($am) = new ManateedClient;
-          $am->port($argv{"p"} || 43698);
+          $am->port($argv{"p"} || 12345);
           $am->timeout($argv{"tcp-timeout"} || 5);
           $am->maxflight($argv{"m"} || 100);
           $am->debug($argv{"v"});
@@ -236,7 +236,7 @@ sub do_faster {
     ### Actually do the commands
     foreach $cmd (@ARGV) {
         my ($am) = new Seco::MultipleTcp;
-        $am->port( $argv{"p"}                   || 43698 );
+        $am->port( $argv{"p"}                   || 12345 );
         $am->minimum_time( $argv{"s"}           || 0 );
         $am->sock_timeout( $argv{"tcp-timeout"} || 60 );
         $am->maxflight( $argv{"m"}              || 100 );
