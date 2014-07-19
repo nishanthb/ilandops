@@ -50,7 +50,7 @@ if( !(GetOptions(\%argv,"h|help","a|alarm=s","r|range=s","c|cluster=s","x|exclud
 	print STDERR "\t-r specify a range of nodes\n";
 	print STDERR "\t-x specify a range to exclude\n";
 	print STDERR "\t-t timeout for waiting to read data from a node (default 30)\n";
-	print STDERR "\t-p port manateed is running on each node (default 43698)\n";
+	print STDERR "\t-p port manateed is running on each node (default 12345)\n";
 	print STDERR "\t-m max in-flight TCP sessions to have at once (default: 0)\n";
 	print STDERR "\t-s sleep time to sleep between hosts (default: 0)\n";
 	print STDERR "\t-v verbosity when opening/closing connections\n";
@@ -141,7 +141,7 @@ sub do_slow {
   foreach $cmd (@ARGV)
   {
           my($am) = new Seco::AllManateed;
-          $am->port($argv{"p"} || 43698);
+          $am->port($argv{"p"} || 12345);
           $am->sleep($argv{"s"} || 0);
           $am->tcp_timeout($argv{"tcp-timeout"} || 5);
           $am->read_timeout($argv{"t"} || 30);

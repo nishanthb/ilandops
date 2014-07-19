@@ -1,0 +1,7 @@
+---
+default:
+  name: fixcpan-file-slurp
+  cpan-module: File::Slurp
+  summary: "CPAN File Slurp"
+  perl: /usr/local/bin/perl
+  release: 1

@@ -1,0 +1,9 @@
+#!/bin/sh
+
+if [ -f Makefile.PL ]; then
+    $PERL Makefile.PL
+    make || exit 1
+    make install DESTDIR=$DESTDIR || exit 1
+    find $DESTDIR -name perllocal.pod -type f -exec rm {} \;
+    find $DESTDIR -name .packlist -type f -exec rm {} \;
+fi

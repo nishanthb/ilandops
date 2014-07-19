@@ -1,0 +1,35 @@
+---
+default:
+  name: fixcpan-class-dbi-abstractsearch
+  summary: "CPAN Class::DBI::AbstractSearch"
+  cpan-module: Class::DBI::AbstractSearch
+  version: 0.07
+  env:
+    PERLTEST: no
+
+
+#yss.redhat:
+#  builds:
+#    - cpan-class-dbi-abstractsearch
+#yst.redhat:
+#  builds:
+#    - cpan-class-dbi-abstractsearch
+#    - fixcpan-class-dbi-abstractsearch
+#yst.debian:
+#  builds:
+#    - fixcpan-class-dbi-abstractsearch
+#
+#fixcpan-class-dbi-abstractsearch:
+#  name: fixcpan-class-dbi-abstractsearch
+#  perl: /usr/local/bin/perl
+#  preferarch: i386
+#  env:
+#    PERLINSTALL: INSTALLDIRS=perl
+#  requires:
+#    - fixcpan-sql-abstract-limit
+#cpan-class-dbi-abstractsearch:
+#  name: cpan-class-dbi-abstractsearch
+#  perl: /usr/bin/perl
+#  requires:
+#    - cpan-sql-abstract-limit
+#    - perl-DBI

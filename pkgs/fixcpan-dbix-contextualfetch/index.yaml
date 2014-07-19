@@ -1,0 +1,28 @@
+---
+default:
+  name: fatcpan-dbix-contextualfetch
+  cpan-module: DBIx::ContextualFetch
+  summary: "CPAN DBIx::ContextualFetch"
+
+yss.redhat:
+  builds:
+    - cpan-dbix-contextualfetch
+yst.redhat:
+  builds:
+    - cpan-dbix-contextualfetch
+    - fixcpan-dbix-contextualfetch
+yst.debian:
+  builds:
+    - fixcpan-dbix-contextualfetch
+
+fixcpan-dbix-contextualfetch:
+  # Only used by YST.
+  # All builds of fixperl are i386 - even on x86_64.
+  meta: 1
+  preferarch: i386
+  name: fixcpan-dbix-contextualfetch
+  perl: /usr/local/bin/perl
+cpan-dbix-contextualfetch:
+  name: cpan-dbix-contextualfetch
+  perl: /usr/bin/perl
+
