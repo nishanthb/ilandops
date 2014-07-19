@@ -1,0 +1,29 @@
+---
+default:
+  name: fixcpan-yaml
+  cpan-module: YAML
+  summary: "CPAN YAML"
+  perl: /usr/local/bin/perl
+  release: 1
+
+#yss.redhat:
+#  builds:
+#    - cpan-yaml
+#yst.redhat:
+#  builds:
+#    - cpan-yaml
+#    - fixcpan-yaml
+#yst.debian:
+#  builds:
+#    - fixcpan-yaml
+
+#fixcpan-yaml:
+#  # Only used by YST.
+#  # All builds of fixperl are i386 - even on x86_64.
+#  preferarch: i386
+#  name: fixcpan-yaml
+# perl: /usr/local/bin/perl
+#cpan-yaml:
+#  name: cpan-yaml
+#  perl: /usr/bin/perl
+

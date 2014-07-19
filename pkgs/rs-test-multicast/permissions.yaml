@@ -1,0 +1,7 @@
+default:
+  permissions:
+    usr/local/bin/test-multicast:
+      - "0"
+      - "0"
+      - "0755"
+

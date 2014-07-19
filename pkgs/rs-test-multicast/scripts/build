@@ -1,0 +1,4 @@
+#! /bin/sh -x
+
+ mkdir -p $DESTDIR/usr/local/bin
+ gcc *.c -o  $DESTDIR/usr/local/bin/test-multicast

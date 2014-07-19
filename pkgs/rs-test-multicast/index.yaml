@@ -1,0 +1,6 @@
+---
+default:
+  name: test-multicast
+  summary: test multicast functionality
+  version: '1.0.0'
+  release: 1
