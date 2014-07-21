@@ -1,5 +1,7 @@
 default:
   name: fixcpan-yaml-syck
-  cpan-module: YAML::Syck
+# cpan-module: YAML::Syck
+  sourcetar: YAML-Syck-1.27.tar.gz
+  version: 1.27
   perl: /usr/local/bin/perl5.8.9
   release: 1
