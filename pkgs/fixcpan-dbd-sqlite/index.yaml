@@ -1,6 +1,7 @@
 default:
   name: fixcpan-dbd-sqlite
-  cpan-module: DBD::Sqlite
+#  cpan-module: DBD::Sqlite
+  sourcetar: DBD-SQLite-1.42.tar.gz
   perl: /usr/local/bin/perl
   release: '1'
   buildrequires:

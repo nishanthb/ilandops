@@ -1,0 +1,12 @@
+default:
+  name: rs-dhcpd
+  summary: "RangeStack dhcpd  daemontools scripts."
+  version: '1.0'
+  release: 1
+  requires:
+    - dhcp
+
+debian:
+  requires:
+    - isc-dhcp-server
+

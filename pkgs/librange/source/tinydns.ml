@@ -55,7 +55,7 @@ let dns_read_memo =
 let fqdn host =
   if ends_with ".com" host then host
   else if ends_with ".net" host then host
-  else host ^ ".inktomisearch.com"
+  else host ^ ".rangestack.com"
 
 (* If the first character is a digit, we return it unmodified, since
    chances are it is an IP.

@@ -1,0 +1,10 @@
+#!/bin/sh
+
+CONF=/etc/dhcpd.conf
+
+echo "try find $CONF"
+sleep 1
+[ -e $CONF ] || exit 1;
+exec 2>&1
+/usr/sbin/dhcpd -cf /etc/dhcpd.conf -f --no-pid
+
