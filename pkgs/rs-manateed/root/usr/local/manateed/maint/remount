@@ -1,0 +1,26 @@
+#! /bin/sh
+
+ TESTFOR=/home/seco/tools/bin/fornode.pl
+
+ # Look for TESTFOR.  If missing, try remounting /home
+ # and see if it is still missing.  Only error if we can't
+ # seem to bring the mount point up.
+
+# home 目录是nfs mount 到远程的.
+
+ # Test for NFS
+ if [ -f $TESTFOR ]; then
+   exit 0
+ else 
+   echo mounting /home
+   umount /home
+   mount /home
+ fi
+
+ if [ -f $TESTFOR ]; then
+   exit 0
+ else 
+   echo failed to mount /home - unable to stat $TESTFOR
+   exit 1
+ fi
+

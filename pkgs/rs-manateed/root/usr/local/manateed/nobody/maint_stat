@@ -1,0 +1,58 @@
+#!/usr/bin/perl -w
+use strict;
+use YAML::Syck;
+
+my $root_dir = '/home/seco/releases';
+my $conf_dir = "$root_dir/conf";
+my $logs_dir = "$root_dir/logs";
+
+my %stat;
+
+for my $file (my @masters = glob "$conf_dir/*.MASTER")
+{
+    next if $file !~ /$conf_dir\/(.+?)\.MASTER/;
+
+    my $seq = $1;
+    my %file = ( ALERT => 1, PAUSE => 1, LOG => 1 );
+    my $label = 'SENTINEL';
+
+    $file .= ".$label";
+    $stat{$seq}{$label} = $file if -f $file;
+
+    for $label (keys %file)
+    {   
+        my $file = "${conf_dir}/${label}_${seq}";
+
+        if (-f $file && open my $fh, $file)
+        { 
+            my $alert = <$fh>;
+            chomp $alert;
+            $stat{$seq}{$label} = $alert;
+            close $fh;
+        } 
+        else
+        { 
+            delete $file{$label};
+        } 
+    }
+
+    $label = 'LOG';
+
+    next unless defined $file{$label};
+
+    $file = $stat{$seq}{$label};
+
+    next unless -f $file;
+
+    if (my @stat = stat $file)
+    {
+        $stat{$seq}{$label} = \@stat;
+    }
+    else
+    {
+        push @{$stat{WARNING}}, "$file: $!";
+    }
+}
+
+print YAML::Syck::Dump \%stat if %stat;
+exit 0;

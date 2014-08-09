@@ -1,0 +1,3 @@
+#!/bin/sh
+
+ssh-keyscan -t rsa `hostname`

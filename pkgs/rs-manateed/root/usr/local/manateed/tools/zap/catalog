@@ -1,0 +1,17 @@
+#!/bin/sh
+
+
+# rudimentary check to see if this is a catalog node setup properly
+if [ ! -f /export/crawlspace/DSCP/.autostart-catalog ] ; then
+	exit 0
+fi
+
+
+# kill all crawler processes
+/usr/bin/pkill -9 -u crawler
+
+# remove catalog lock file in case it gets confused
+rm /export/crawlspace/DSCP/catalog/lock
+
+# launch new catalog via init script
+/etc/rc2.d/S99runcatalog start

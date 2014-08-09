@@ -1,0 +1,11 @@
+#!/bin/sh
+
+PATH=/bin:/usr/bin:/usr/local/bin:/home/seco/tools/bin
+export PATH
+
+# Wake up NFS
+test -f /home/watcher/watcher3/util/check_fs
+test -f /home/watcher/watcher3/util/check_fs
+
+# Check NFS (run the script) and local disks (object of script)
+setuidgid nobody /home/watcher/watcher3/util/check_fs

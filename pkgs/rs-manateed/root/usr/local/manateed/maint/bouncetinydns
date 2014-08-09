@@ -1,0 +1,8 @@
+#!/bin/sh
+
+PATH=/bin:/usr/bin:/usr/local/bin:/home/seco/tools/bin
+export PATH
+
+# bounce tinydns
+svc -t /service/tinydns
+

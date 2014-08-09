@@ -1,0 +1,18 @@
+#!/usr/bin/perl -w
+use strict;
+
+my @PATHS = qw( /export/crawlspace /local /local1 );
+my ($PATH) = grep(-d "$_/.",@PATHS) or die "No place to store data";
+
+my $RRDTOOL="/usr/local/bin/static-rrdtool";
+my $RRDPATH="$PATH/rrd-local";
+
+my ($cmd,$rrd_file,@params)=@ARGV;
+die "RRD command is not defined\n" if ! defined $cmd;
+die "unsupported RRD command $cmd\n" if $cmd!~/^(fetch|info|dump|first|last|lastupdate|rrdxport)$/;
+die "RRD file is not specified\n" if ! defined $rrd_file;
+$rrd_file="$RRDPATH/$rrd_file";
+die "RRD file $rrd_file file is not found\n"  if ! -f $rrd_file;
+my $i=system($RRDTOOL,$cmd,$rrd_file,@params);
+die "failed to run $RRDTOOL: $!\n" if $? == -1;
+exit $?>>8 if $?;

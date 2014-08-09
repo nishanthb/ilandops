@@ -1,0 +1,7 @@
+default:
+  name: fixcpan-term-readkey
+  cpan-module: Term::ReadKey
+  perl: /usr/local/bin/perl
+  release: '1'
+#  env:
+#    PERLTEST: no

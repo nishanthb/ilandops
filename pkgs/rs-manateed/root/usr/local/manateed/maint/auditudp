@@ -1,0 +1,76 @@
+#! /usr/bin/perl
+
+my $minport = 2048;
+if (@ARGV) {
+ if ($ARGV[0] =~ /^\d+$/) {
+   $minport = shift @ARGV;
+ } 
+}
+
+my @results;
+@results = `netstat -anp`;
+@results = grep(/^udp/,@results);
+@results = grep(!/ESTABLISHED/,@results);
+@results = grep(m#/#,@results);
+
+my @iptables = `iptables-save`;
+my ($safe) = grep(/--sport 53 .*state NEW/,@iptables);
+
+
+
+foreach my $result (@results) {
+  my (@words) = split(m#[:\s]+#,$result);
+  my $myip = $words[3];
+  next if ($myip =~ /^10\.\d+/);
+  next if ($myip =~ /^127\.\d+/);
+  my $myport = $words[4];
+  my $otherip = $words[5];
+  my $otherport = $words[6];
+  my ($pid,$app) = split(m#/#,$words[7]);
+  
+  if ($app =~ m#(perl|python|java)#) {
+    $cmdline = "/proc/$pid/cmdline";
+    open(CMDLINE,"<$cmdline");
+    my $buf = <CMDLINE>;
+    my @buf = split(/\x00/,$buf);
+    close CMDLINE;
+    if (@buf) {
+      shift @buf if ($buf[0] =~ m#/(perl|python|java)#);
+      shift @buf while ($buf[0] =~ m#^-#);
+    }
+    if (@buf) {
+      my $b  = shift @buf;
+      $b =~ s#.*/##;
+      $app = "$app\:$b";
+    }
+  }
+  
+    $app="safe:$app" if ($safe);
+  
+  my $show = "$myport $app";
+  next unless ($myport >= $minport);
+  print "$show\n" unless ($seen{$show}++);
+}
+
+@results = `rpcinfo -p`;
+@results = grep(/ udp /,@results);
+foreach (@results) {
+  @words =grep(/./, split(/\s+/,$_));
+  my($myport) = $words[3];
+  my($app) = $words[4];
+  $app = "safe:$app" if ($safe);
+  my $show = "$myport $app";
+  next unless ($myport >= $minport);
+  print "$show\n" unless ($seen{$show}++);
+}
+
+
+__END__
+02 (1 jobs) (exit 20)
+root@vortex:~/t/ # rpcinfo -p
+   program vers proto   port
+    100000    2   tcp    111  portmapper
+    100000    2   udp    111  portmapper
+    100024    1   udp    789  status
+    100024    1   tcp   8888  status
+

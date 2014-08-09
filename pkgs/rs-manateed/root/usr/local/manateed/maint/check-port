@@ -1,0 +1,74 @@
+#!/secoperl
+
+use lib "/home/seco/tools/lib";
+use Getopt::Long;
+use strict;
+
+use Seco;
+use Data::Dumper;
+use IO::Socket;
+
+# use Seco::sudo qw(seco);
+
+
+$|=1;
+
+my(%argv,%input,$usage);
+
+%input=(
+ "host=s","hosts to test",
+ "p|port=i","port number to use",
+ "v|verbose","spew extra data to the screen",
+ "t|timeout=i","timeout",
+ "h|help","show option help");
+
+my $result = GetOptions(\%argv,keys %input);
+
+if ((! defined $argv{"host"}) && (scalar @ARGV)) {
+  $argv{"host"} = shift @ARGV;
+}
+if ((! defined $argv{"p"}) && (scalar @ARGV)) {
+  $argv{"p"} = shift @ARGV;
+}
+
+if ((! defined $argv{"t"}) && (scalar @ARGV)) {
+  $argv{"t"} = shift @ARGV;
+}
+
+$argv{"p"} ||= 80;
+$argv{"t"} ||= 5;
+
+if ((!$result) || (! $argv{"host"}) || ($argv{h})) {
+   &showOptionsHelp; exit 0;
+}
+
+my $remote = IO::Socket::INET->new(
+  Proto=>"tcp",
+  PeerAddr=>$argv{"host"},
+  PeerPort=>$argv{"p"},
+  Timeout=>$argv{"t"} );
+
+die "ERROR: check-port $argv{host} $argv{p} $!" unless ($remote);
+
+print "SUCCESS: check-port $argv{host} $argv{p}\n";
+exit;
+
+
+sub showOptionsHelp {
+ my($left,$right,$a,$b,$key);
+ my(@array);
+ print "Usage: $0 [options] $usage\n";
+ print "where options can be:\n";
+ foreach $key (sort keys (%input)) {
+    ($left,$right) = split(/[=:]/,$key);
+    ($a,$b) = split(/\|/,$left);
+    if ($b) {  
+      $left = "-$a --$b";
+    } else {
+      $left = "   --$a";
+    }
+    $left = substr("$left" . (' 'x20),0,20);
+    push(@array,"$left $input{$key}\n");
+ }
+ print sort @array;
+}

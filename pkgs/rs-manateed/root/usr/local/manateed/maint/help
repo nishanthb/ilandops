@@ -1,0 +1,8 @@
+#! /usr/local/bin/perl5
+
+@g = glob("/usr/local/manateed/maint/*");
+foreach (@g) {
+  s#.*/##; print "$_ ";
+}
+print "\n";
+exit 0;
