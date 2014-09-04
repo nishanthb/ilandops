@@ -1,0 +1,7 @@
+---
+default:
+  name: rs-ipsvd
+  summary: ucspi-tcp replacment that has a udp server too
+  http: http://zhouchang.net/dl/misc/ipsvd-0.11.1.tar.gz
+  version: '0.11.1'
+  release: 1

@@ -1,0 +1,25 @@
+---
+default:
+  name: fixcpan-text-csv
+  cpan-module: Text::CSV
+  summary: "CPAN Text::CSV"
+  perl: /usr/local/bin/perl
+  release: 1
+redhat:
+  builds:
+    - cpan-text-csv
+    - fixcpan-text-csv
+debian:
+# Build stubs for debian.  No real work will be done.
+  meta: 1
+  builds:
+    - cpan-text-csv
+    - fixcpan-text-csv
+
+fixcpan-text-csv:
+  name: fixcpan-text-csv
+  perl: /usr/local/bin/perl
+cpan-text-csv:
+  name: cpan-text-csv
+  perl: /usr/bin/perl
+

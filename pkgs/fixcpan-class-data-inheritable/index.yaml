@@ -1,0 +1,47 @@
+---
+default:
+  name: fixcpan-class-data-inheritable
+  cpan-module: Class::Data::Inheritable
+  summary: "CPAN Class::Data::Inheritable"
+  perl: /usr/local/bin/perl
+  release: 1
+
+######################################################
+# ONLY NEEDED FOR RHEL4_32 /usr/bin/perl             #
+# Making dummy package for all others to             #
+# satisfy dependency checks in packaging system      #
+######################################################
+
+yss.redhat:
+  builds:
+    - cpan-class-data-inheritable
+
+yst.i386.redhat:
+  builds:
+    - cpan-class-data-inheritable
+    - fixcpan-class-data-inheritable.meta
+yst.x86_64.redhat:
+  builds:
+    - cpan-class-data-inheritable
+    - fixcpan-class-data-inheritable.real
+yst.debian:
+  builds:
+    - fixcpan-class-data-inheritable.meta
+
+fixcpan-class-data-inheritable.real:
+  name: fixcpan-class-data-inheritable
+  perl: /usr/local/bin/perl
+  preferarch: i386
+
+fixcpan-class-data-inheritable.meta:
+  name: fixcpan-class-data-inheritable
+  meta: 1
+  perl: /usr/local/bin/perl
+  preferarch: i386
+
+
+# We want these on both platforms.
+cpan-class-data-inheritable:
+  name: cpan-class-data-inheritable
+  perl: /usr/bin/perl
+

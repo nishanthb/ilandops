@@ -1,0 +1,5 @@
+#!/bin/sh
+mkdir ./main
+chown -R dnslog ./main
+exec cat >/dev/null
+exec setuidgid dnslog multilog I t s1048576 n10 ./main

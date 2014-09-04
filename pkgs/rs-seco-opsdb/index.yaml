@@ -1,0 +1,13 @@
+default:
+  name: rs-seco-opsdb
+  summary: perl module for accessing RangeStack opsdb
+  version: '1.0'
+  release: 1
+  perl: /usr/local/bin/perl
+  requires:
+    - fixcpan-time-piece
+    - fixcpan-yaml-syck
+    - fixcpan-class-dbi-abstractsearch
+    - fixcpan-class-dbi-frozen-301
+    - fixcpan-dbix-contextualfetch
+    - rs-seco-awesomerange

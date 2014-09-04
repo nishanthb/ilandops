@@ -1,0 +1,8 @@
+patched with dmuino's udp source port hackery
+-
+also patched to up the number of loops dnscache will do to look
+up names; specifically to address akadns.net / akadns.org lookup issues.
+http://marc.theaimsgroup.com/?l=djbdns&m=113170809226754&w=2
+(used 500 not 160 though)
+  --jfesler
+-

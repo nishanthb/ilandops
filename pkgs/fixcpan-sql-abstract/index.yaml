@@ -1,0 +1,34 @@
+---
+default:
+  name: fixcpan-sql-abstract
+#  cpan-module: SQL::Abstract
+  sourcetar: SQL-Abstract-1.78.tar.gz
+  version: 1.78
+  summary: "CPAN SQL::Abstract"
+  perl: /usr/local/bin/perl
+  release: 1
+
+yss.redhat:
+  builds:
+    - cpan-sql-abstract
+yst.redhat:
+  builds:
+    - cpan-sql-abstract
+    - fixcpan-sql-abstract
+yst.debian:
+  builds:
+    - fixcpan-sql-abstract
+
+fixcpan-sql-abstract:
+  # Only used by YST.
+  # All builds of fixperl are i386 - even on x86_64.
+  preferarch: i386
+  name: fixcpan-sql-abstract
+  perl: /usr/local/bin/perl
+  env:
+    PERLINSTALL: INSTALLDIRS=perl
+
+cpan-sql-abstract:
+  name: cpan-sql-abstract
+  perl: /usr/bin/perl
+

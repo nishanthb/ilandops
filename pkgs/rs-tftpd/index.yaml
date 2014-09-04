@@ -1,0 +1,7 @@
+---
+default:
+  name: rs-tftpd
+  http: http://zhouchang.net/dl/misc/tftpd-0.41.tar.gz
+  summary: tftp server
+  version: '0.41'
+  release: 1

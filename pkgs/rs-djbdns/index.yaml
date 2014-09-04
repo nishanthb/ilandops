@@ -1,0 +1,12 @@
+---
+default:
+ name: rs-djbdns
+ version: '1.05'
+ release: '2'
+ http: http://zhouchang.net/dl/misc/djbdns-1.05.tar.gz
+# sourcetar: 
+ summary: Binaries for djbdns. Configures a caching only name server on localhost.
+ requires: 
+    - daemontools076
+
+

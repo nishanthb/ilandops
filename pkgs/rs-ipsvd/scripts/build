@@ -1,0 +1,11 @@
+#!/bin/sh
+
+package/compile
+mkdir -p $DESTDIR/usr/local/bin
+cp command/* $DESTDIR/usr/local/bin
+
+for i in 5 7 8; do
+	mkdir -p $DESTDIR/usr/share/man/man$i
+	cp man/*.$i $DESTDIR/usr/share/man/man$i
+done
+

@@ -1,0 +1,19 @@
+#!/usr/bin/zsh
+# vim:set ft=zsh:
+
+emulate -L zsh
+setopt extendedglob
+
+exec 2>&1
+
+IP=`./find-primary-eth-ip`
+
+test -d /etc/service/dnscache/root/servers/. || mkdir -p /etc/service/dnscache/root/servers
+test -d /etc/service/dnscache/root-stage/. || mkdir -p /etc/service/dnscache/root-stage
+
+echo Updating /service/dnscache/root/servers/ and env/IP with our IP
+echo $IP > /service/dnscache/root/servers/[0-9a-zA-Z]*
+echo $IP > /service/tinydns/env/IP
+svc -t /service/dnscache
+
+exec envuidgid tinydns envdir ./env softlimit -d300000 /usr/local/bin/tinydns

@@ -1,0 +1,124 @@
+#! /usr/local/bin/perl5
+
+ use strict;
+ use Seco::AwesomeRange qw/:common/;
+ 
+ eval <<'EOF' or warn "Unable to load Digest:MD5; md5 checks disabled.\n";
+     if (require Digest::MD5) {
+       import Digest::MD5;
+     };  1;
+EOF
+
+
+ # Export a sane path
+ $ENV{"PATH"} = "/bin:/usr/bin:/usr/local/bin:/sbin:/usr/sbin:/usr/local/sbin";
+
+ # Find out who we are
+ my $hostname = `hostname`;  chomp $hostname;
+ my $slavefrom = "boothost";
+
+ if ($hostname eq "regulus") {
+     print "I am regulus - I should not slave from anyone.\n";
+     exit 0;
+ }
+
+ # Figure out where we should by default slave from 
+ open(HOSTS,"/etc/gemstonehints") || die "failed to open /etc/gemstonehints";
+ while(<HOSTS>) {
+  if (/^admin=yes/) {
+     print "I am an adminhost - slave from regulus instead\n";
+     $slavefrom = "regulus";
+     last;
+    }
+ }
+
+ if (expand_range("\@DNS_SEND,\@DNS_SEND_MCAST,&$hostname")) {
+    $slavefrom = 'regulus';
+ }
+
+ if ($^O =~ m/solaris/) {
+   $slavefrom = "regulus";
+ }
+
+
+ # Figure out if we're going to slave from somewhere else intentionally
+ if (scalar @ARGV) {
+   $slavefrom = shift @ARGV;
+   print "Overriding who we will slave from with $slavefrom\n";
+ } else {
+   print "Slave from: $slavefrom\n";
+ }
+
+ # Make and chdir into our work directory.
+ unless (-d "/etc/service/tinydns/root-stage") {
+   run_local("mkdir","-p","/etc/service/tinydns/root-stage");
+ }
+ chdir("/etc/service/tinydns/root-stage") || die "Failed to chdir /etc/service/tinydns/root-stage : $!";
+
+ # Pull down data files; compile the data.cdb file.
+ # We used to pull this down but our zone data is quite large now.
+ run_local("rsync","--timeout=900","${slavefrom}::tinydnsdata/data",".");
+ run_local("rsync","--timeout=900","${slavefrom}::tinydnsdata/distribute-myhosts.pl",".");
+ run_local("rsync","--timeout=900","${slavefrom}::tinydnsdata/data.md5",".");
+ run_local("rsync","--timeout=900","${slavefrom}::tinydnsdata/configure-dnscache",".");
+ run_local("rsync","--timeout=900","${slavefrom}::tinydnsdata/data.tar.gpg","/etc/service/tinydns/root/") if ($slavefrom eq "regulus");
+ run_local("tinydns-data");
+
+ # Check the signatures against the signature file.
+ # Any failure here will make pull abort. 
+ verify_md5("data");
+ verify_md5("data.cdb");
+ verify_md5("distribute-myhosts.pl");
+ verify_md5("configure-dnscache");
+
+ # Set the data live!
+ run_local("rsync data data.cdb data.md5 configure-dnscache distribute-myhosts.pl /etc/service/tinydns/root/");
+ run_local("/etc/service/tinydns/root/configure-dnscache");
+
+ # All done.
+ exit 0;
+
+
+
+
+sub verify_md5 {
+  my($file) = @_;
+
+  return if (! defined  $Digest::MD5::VERSION);  # No module!
+
+
+  open(SIGNED,"<data.md5") || die("Failed to open data.md5 in " . `pwd`);
+  my ($signed,$name,%signed);
+  while(<SIGNED>) {
+    ($signed,$name) = split(/\s+/);
+    $signed{$name}=$signed;
+  }
+  close SIGNED;
+  unless (defined $signed{$file}) {
+    die ("Could not find $file in data.md5 in" . `pwd`);
+  }
+  my $ctx = Digest::MD5->new;
+  open(FILE,"<$file") || die ("Failed to open $file in " . `pwd` . "  - reason: $!");
+  $ctx->addfile(*FILE);
+  close FILE;
+  my $digest = lc $ctx->hexdigest;
+  unless ($digest eq $signed{$file}) {
+    die "Failed signature verification for $file, wanted $digest found $signed{$file}, exiting\n";
+  }
+
+}
+
+
+
+
+sub run_local {
+  my(@a) = @_;
+  print "% @a\n" if (-t STDIN && -t STDOUT);
+  system(@a);
+  my $exit_value  = $? >> 8;
+  my $signal_num  = $? & 127;
+  my $dumped_core = $? & 128;
+  die("ERROR: exit value $exit_value while: ",@a) if ($exit_value);
+  die("ERROR: signal $signal_num while: ",@a) if ($signal_num);
+  die("ERROR: dumped core while: ",@a) if ($dumped_core);
+}

@@ -1,0 +1,30 @@
+---
+default:
+  name: fixcpan-ima-dbi
+  cpan-module: Ima::DBI
+  summary: "CPAN Ima::DBI"
+  perl: /usr/local/bin/perl
+  release: 1
+
+yss.redhat:
+  builds:
+    - cpan-ima-dbi
+yst.redhat:
+  builds:
+    - cpan-ima-dbi
+    - fixcpan-ima-dbi
+yst.debian:
+  builds:
+    - fixcpan-ima-dbi
+
+fixcpan-ima-dbi:
+  # Only used by YST.
+  # All builds of fixperl are i386 - even on x86_64.
+  meta: 1
+  preferarch: i386
+  name: fixcpan-ima-dbi
+  perl: /usr/local/bin/perl
+cpan-ima-dbi:
+  name: cpan-ima-dbi
+  perl: /usr/bin/perl
+

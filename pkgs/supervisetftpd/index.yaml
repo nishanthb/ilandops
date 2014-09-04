@@ -1,0 +1,11 @@
+default:
+  name: supervisetftpd
+  requires:
+    - daemontools076
+    - rs-tftpd
+    - rs-ipsvd
+  summary: Run tftpd service.
+  version: '1.0'
+  release: 1
+
+  

@@ -1,0 +1,10 @@
+default:
+  name: fixcpan-sql33t
+  version: '1.08'
+  requires: 
+    - fixperl
+    - fixcpan-dbi
+  summary: SQL33t perl module
+  sourcetar: sql33t-1.08.tar.gz
+  perl: /usr/local/bin/perl
+  release: 1

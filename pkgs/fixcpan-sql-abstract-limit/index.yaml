@@ -1,0 +1,38 @@
+---
+default:
+  name: fixcpan-sql-abstract-limit
+  cpan-module: SQL::Abstract::Limit
+  summary: "CPAN SQL::Abstract::Limit"
+  perl: /usr/local/bin/perl
+  release: 1
+  env:
+    PERLTEST: no
+
+yss.redhat:
+  builds:
+    - cpan-sql-abstract-limit
+yst.redhat:
+  builds:
+    - cpan-sql-abstract-limit
+    - fixcpan-sql-abstract-limit
+yst.debian:
+  builds:
+    - fixcpan-sql-abstract-limit
+# Allow overwriting some fixperl58 files
+  replaces:
+    - fixperl58
+
+fixcpan-sql-abstract-limit:
+  # Only used by YST.
+  # All builds of fixperl are i386 - even on x86_64.
+  preferarch: i386
+  name: fixcpan-sql-abstract-limit
+  perl: /usr/local/bin/perl
+  requires:
+    - fixcpan-sql-abstract
+cpan-sql-abstract-limit:
+  name: cpan-sql-abstract-limit
+  perl: /usr/bin/perl
+  requires:
+   - cpan-sql-abstract
+

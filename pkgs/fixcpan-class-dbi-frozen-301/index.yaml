@@ -1,0 +1,41 @@
+default:
+  name: fixcpan-class-dbi-frozen-301
+  cpan-module: Class::DBI::Frozen::301
+  perl: /usr/local/bin/perl
+  release: 1
+  env:
+    PERLTEST: no
+
+yss.redhat:
+  builds:
+    - cpan-class-dbi-frozen-301
+yst.redhat:
+  builds:
+    - cpan-class-dbi-frozen-301
+    - fixcpan-class-dbi-frozen-301
+yst.debian:
+  builds:
+    - fixcpan-class-dbi-frozen-301
+
+ 
+cpan-class-dbi-frozen-301:
+  name: cpan-class-dbi-frozen-301
+  perl: /usr/bin/perl
+  requires:
+    - cpan-class-trigger
+    - cpan-class-data-inheritable
+    - cpan-class-accessor
+    - cpan-ima-dbi
+    - cpan-universal-moniker
+
+fixcpan-class-dbi-frozen-301:
+  name: fixcpan-class-dbi-frozen-301
+  perl: /usr/local/bin/perl
+  preferarch: i386
+  requires:
+    - fixcpan-class-trigger
+    - fixcpan-class-data-inheritable
+    - fixcpan-class-accessor
+    - fixcpan-ima-dbi
+    - fixcpan-universal-moniker
+

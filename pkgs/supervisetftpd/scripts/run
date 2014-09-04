@@ -1,0 +1,11 @@
+#!/bin/sh
+
+exec 2>&1
+
+while [ ! -d /tftpboot ]; do
+	sleep 10
+done
+
+exec udpsvd -v -uroot 0 69 nice /usr/local/sbin/in.tftpd -s /tftpboot/
+
+sleep 10

@@ -1,0 +1,921 @@
+#!/usr/local/bin/perl
+
+
+use strict;
+use File::Basename qw/basename/;
+use Getopt::Long;
+use POSIX qw/ttyname/;
+use Seco::OpsDB;
+use Seco::AwesomeRange qw/expand_range sorted_expand_range compress_range/;
+use Text::CSV;
+
+$|++;
+$0 = basename($0);
+
+my %opt;
+Getopt::Long::Configure('no_ignore_case');
+GetOptions(\%opt,
+	   "update|U",
+	   "id|I=s",
+	   "massrename|mr=s",
+	   "range|r=s",
+	   "ytag|A=s",
+	   "status|X=s",
+	   "name|n=s",
+	   "type|t=s",
+	   'model|m=s',
+	   "group|g=s",
+	   "set-group|SG=s",
+	   "add-group|AG=s",
+	   "del-group|DG=s",
+	   "order|o=s",
+	   "project|p=s",
+	   "property|P=s",
+	   "site|s=s",
+	   "serialno|sn=s",
+	   "ponumber|po=s",
+	   "description|d=s",
+	   "mac|a=s",
+	   "console|C=s",
+	   "cport|cp=i",
+	   "bootbox|b=s",
+	   "bootbox2|b2=s",
+	   "bport|bp=i",
+	   "bport2|bp2=i",
+	   "bplug|bP=i",
+	   "bplug2|bP=i",
+	   "switch|S=s",
+	   "sport|sp=s",
+           "loccab|L=s",
+	   "loccage|LC=s",
+	   "locroom|LM=s",
+	   "locarea|LA=s",
+	   "locrow|LW=s",
+	   "locrack|LK=s",
+	   "locside|LE=s",
+	   "locshelf|LF=s",
+	   "racksize|rs=i",
+	   "help|h",
+	   "count|c",
+	   "verbose|v",
+	   "limit|l=i",
+	   "outrange|R",
+	   "shortrange|SR",
+	   "sort|Z=s",
+	   "csv:s",
+           "dot:s",
+           "noheader",
+	   "list-properties|lP",
+	   "list-sites|ls",
+	   "list-orders|lo",
+	   "list-projects|lp",
+	   "list-types|lt",
+	   "list-models|lm",
+	   "list-groups|lg",
+	   "timestamp|ts",
+	   "pony",
+	   "pony-red",
+	   "pony-anim:s",
+	   "pony-say",
+	   "help|h",
+           "sqlite=s",
+           "fat",
+           "bypass-security",       
+    );
+
+help() if ($opt{help});
+pony("") if ($opt{pony});
+pony("\e[31m") if ($opt{"pony-red"});
+if (exists $opt{"mac"}) {
+        my @w=split(/:/,$opt{"mac"});
+        if (scalar @w eq 6) {
+           s/^([0-9a-f])$/0$1/i foreach (@w);
+           $opt{"mac"} = lc join(":",@w);
+        }
+        if ($opt{"mac"} =~
+	  /^([0-9a-f]{2})[:\-]?([0-9a-f]{2})[\.:\-]([0-9a-f]{2})[:\-]?([0-9a-f]{2})[\.:\-]([0-9a-f]{2})[:\-]?([0-9a-f]{2})$/i) {
+	   $opt{"mac"} = "${1}:${2}:${3}:${4}:${5}:${6}";
+	}
+}
+if (exists $opt{"pony-anim"}) {
+	eval "use Seco::Pony::Animate";
+	if ($opt{"pony-anim"}) {
+	    Seco::Pony::Animate->new({color => $opt{"pony-anim"} })->animate;
+        } else {
+            Seco::Pony::Animate->new->animate;
+        }
+	exit(0);
+}
+if (exists $opt{"pony-say"}) {
+	eval "use Seco::Pony::Say";
+	print Seco::Pony::Say->slogan;
+	exit(0);
+}
+
+if (exists $opt{"bypass-security"}) {
+	Seco::OpsDB->__allow_non_PE_updates(1);
+	delete $opt{"bypass-security"};
+}
+
+END { unlink("/tmp/opsdb.$$.dat"); };
+if (exists $opt{"fat"}) {
+  system("cp --remove-destination  /home/gemserver/var/opsdb.dat /tmp/opsdb.$$.dat");
+  Seco::OpsDB->db_sqlite("/tmp/opsdb.$$.dat");
+  delete $opt{"fat"};
+}
+
+if (exists $opt{"sqlite"}) {
+      Seco::OpsDB->db_sqlite($opt{"sqlite"});
+      delete $opt{"sqlite"};
+}
+
+#Addition of the loccab query option [bug 1032600]
+if (exists $opt{'loccab'}){
+    my $cab = $opt{'loccab'};
+    $cab =~ s/^\s+|\s+$//g;
+    $cab =~ m%^\w+/\w+/\w+/\w+/\w+$%
+        or die 'Wrong format: Format is site/loccage/locarea/locrow/locrack (EX: sk1/0/C/2/3)';
+    my @loc = split /\//, $cab;
+    @loc == 5
+        or die 'Wrong number of locations, there should be 5';
+    $opt{'site'} = shift @loc;
+    $opt{'loccage'} = shift @loc;
+    $opt{'locarea'} = shift @loc;
+    $opt{'locrow'} = shift @loc;
+    $opt{'locrack'} = shift @loc;
+    delete $opt{'loccab'};
+}
+
+Seco::OpsDB->connect;
+
+if ($opt{timestamp}) {
+    if ((Seco::OpsDB->db_driver ne 'SQL33t') and
+        (Seco::OpsDB->db_driver ne 'SQLite')) {
+
+	print "not using an opsdb replica\n";
+    }
+    else {
+	print Seco::OpsDB->timestamp->cdate, "\n";
+    }
+    exit(0);
+}
+elsif (($opt{'list-orders'}) or
+       ($opt{'list-projects'}) or
+       ($opt{'list-groups'})) {
+    my $it = Seco::OpsDB::NodeGroup->search_where(
+      prop_id => Seco::OpsDB::Property->retrieve(name  => 'yst'));
+    while (my $order = $it->next) {
+	if ($opt{'list-orders'}) {
+	    print $order->name, "\n" if ($order->name =~ /^yst-/);
+	}
+	elsif ($opt{'list-projects'}) {
+	    print $order->name, "\n" if ($order->name =~ /^ystp-/);
+	}
+	elsif ($opt{'list-groups'}) {
+	    print $order->name, "\n";
+	}
+    }
+    exit(0);
+}
+elsif ($opt{'list-properties'}) {
+    print $_->name, "\n" for Seco::OpsDB::Property->retrieve_all;
+    exit(0);
+}
+elsif ($opt{'list-sites'}) {
+    print $_->name, "\n" for Seco::OpsDB::Site->retrieve_all;
+    exit(0);
+}
+elsif ($opt{'list-models'}) {
+    print $_->name, "\n" for Seco::OpsDB::Model->retrieve_all;
+    exit(0);
+}
+elsif ($opt{'list-types'}) {
+    my $it = Seco::OpsDB::Dictionary->search_where(
+               parent_id => Seco::OpsDB::Dictionary->retrieve(
+	         dict_id => Seco::OpsDB::Dictionary->retrieve(
+		   name  => 'assetType')));
+    while (my $ent = $it->next) {
+	print $ent->name, "\n";
+    }
+    exit(0);
+}
+elsif ($opt{range}) {
+	my @expanded = expand_range($opt{range});
+	die "$0: $opt{range} does not expand\n" unless (@expanded);
+	foreach (@expanded) { $_ .= '.inktomisearch.com'
+	  if ($_ !~ /\.(com|net)$/) }
+	$opt{range} = \@expanded;
+}
+else {
+    if ($ARGV[0]) {
+	chomp(my @list = split(/,/, $ARGV[0]));
+	$opt{range} = \@list;
+	map {
+	    $_ .= '.inktomisearch.com' unless ((/\.(com|net)$/) or (/\/$/))
+	} @{ $opt{range} };
+    }
+}
+
+if ($opt{massrename} and $opt{massrename} !~ /^nyn(yss)?$/ and !$opt{sort}) {
+	die "$0: don't use --massrename without --sort (perhaps you want --sort cabinet)";
+}
+usage() if (($opt{update}) and ((!$opt{range}) and (!$opt{massrename})));
+usage() unless
+  my @searchkeys = grep {
+		     $_ !~
+		     /^(update|massrename|help|verbose|count|csv|dot|outrange|shortrange|noheader|sort|limit|set-group|add-group|del-group)$/
+		   } keys %opt;
+
+my %search;
+foreach my $key (@searchkeys) {
+    if ($key eq 'range') {
+        $search{name} = $opt{$key};
+    }
+    elsif ($key eq 'name') {
+	$opt{$key} .= '.inktomisearch.com' if ($opt{$key} !~ /\.(com|net)$/);
+    }
+    elsif ($opt{$key} =~ /,/) {
+        my @parts = split(/,/, $opt{$key});
+
+	# some overrides here
+	$key = 'nodetype' if ($key eq 'type');
+	$key = 'node_id'  if ($key eq 'id');
+
+        $search{$key} = \@parts;
+    }
+    else {
+	my $what = $opt{$key};
+
+	# some overrides here
+	$key = 'nodetype' if ($key eq 'type');
+	$key = 'node_id'  if ($key eq 'id');
+
+	$search{$key} = $what;
+    }
+}
+
+my $it;
+if (($opt{update}) and (!$opt{massrename})) {
+    die "$0: don't use --limit with --update\n" if ($opt{limit});
+    $it = Seco::OpsDB::Node->complex_search(fields => { name => $opt{range} });
+}
+else {
+    if ($opt{sort}) {
+	my @parts = split(/,/, $opt{sort});
+	$opt{sort} = [];
+	for my $part (@parts) {
+	    if ($part eq 'cabinet') {
+		push(@{ $opt{sort} },
+		  qw/siteid loccage locarea locrow locrack locside locshelf
+		     netswitch sport/);
+		next;
+	    }
+            $part = 'nodetype'  if ($part eq 'type');
+            $part = 'netswitch' if ($part eq 'switch');
+            $part = 'siteid'    if ($part eq 'site');
+	    push(@{ $opt{sort} }, $part);
+	}
+    }
+
+    my $attrs = [];
+    if($opt{csv})
+    {
+        for my $csvAttr (split /,/, $opt{'csv'})
+        {
+            if($csvAttr eq 'loccab')
+            {
+                push @{$attrs}, qw/site loccage locarea locrow locrack/;
+                next;
+            }
+            push @{$attrs}, $csvAttr;
+        }
+    }
+
+
+    $it = Seco::OpsDB::Node->complex_search(fields     => \%search,
+				            numresults => $opt{limit},
+				            sort       => $opt{sort},
+					    additional_attrs => $attrs);
+}
+
+die "$0: no matches\n" if (!$it);
+
+# if --update was specified, make our opsdb instance writable now
+if ($opt{update}) {
+    my $user = (getpwuid((stat(ttyname(0)))[4]))[0];
+
+    if ((!$user) or ($user eq 'root')) {
+	die "$0: cannot determine user we're running as or running as root\n";
+    }
+
+    Seco::OpsDB->opsdb_account($user);
+}
+
+# our main decision tree
+if ($opt{count}) {
+    print $it->matches, "\n";
+}
+elsif ($opt{outrange} or $opt{shortrange}) {
+    my @nodes;
+    while (my $node = $it->next) {
+	my $name = $node->name;
+	$name =~ s/\.(yahoo|inktomisearch)\.com$// if $opt{shortrange};
+	push(@nodes, $name);
+    }
+    print compress_range(\@nodes), "\n";
+}
+elsif (defined($opt{csv}) or defined($opt{dot})) {
+    my $format = (defined($opt{csv})) ? 'csv' : 'dot';
+    my ($csv, %graph);
+
+    if (!$opt{$format}) {
+        if ($format eq "csv") {
+	    $opt{$format} = [ 'name', 'site', 'model', 'console', 'cport' ];
+        }
+	elsif ($format eq "dot") {
+            $opt{$format} = [ 'name', 'switch', 'site' ];
+        }
+    }
+    else {
+	my @parts = split(/,/, $opt{$format});
+	$opt{$format} = \@parts;
+    }
+
+    if ($format eq "csv") {
+        $csv = Text::CSV->new;
+        $csv->combine(@{ $opt{$format} });
+        print $csv->string, "\n" unless ($opt{noheader});
+    }
+
+    while (my $node = $it->next) {
+	my @vals;
+        my $fieldindex = 0;
+	foreach my $field (@{ $opt{$format} }) {
+
+            $field = 'siteid'    if ($field eq 'site');
+            $field = 'netswitch' if ($field eq 'switch');
+            $field = 'nodetype'  if ($field eq 'type');
+
+	    if (($field eq 'console')  or ($field eq 'model')     or
+	        ($field eq 'order')    or ($field eq 'property')  or
+		($field eq 'project')  or
+		($field eq 'nodetype') or ($field eq 'netswitch') or
+		($field eq 'siteid')   or ($field eq 'owner')     or
+		($field eq 'cbridge')  or ($field eq 'bootbox')   or
+		($field eq 'bootbox2')) {
+		($node->$field) ?
+		  push(@vals, $node->$field->name) :
+		  push(@vals, undef);
+	    }
+	    elsif ($field eq 'group' or $field eq 'groups') {
+		push(@vals, join(':', map { $_->name } $node->groups));
+	    }
+            #Addition of the loccab output option [bug 1032600]
+            elsif ($field eq 'loccab')
+            {
+                my @cab = ($node->site->name);
+                push @cab, map { $node->$_ } qw/loccage locarea locrow locrack/;
+                push @vals, join('/', @cab);
+            }
+	    elsif ($field eq 'locinfo') {
+		push(@vals, join('/', map { $node->$_ } qw/loccage  locarea
+		                                           locrow   locrack
+							   locshelf locside
+							   ytag/));
+	    }
+	    else {
+		eval {
+			($node->$field) ?
+			  push(@vals, $node->$field) :
+			  push(@vals, undef);
+		};
+		if ($@) {
+			if ($@ =~ /Can't locate object method/) {
+			    die "$0: specified invalid column\n";
+			} else {
+			    die $@;
+			}
+		}
+	    }
+	}
+
+        if ($format eq 'csv') {
+	    $csv->combine(@vals);
+	    print $csv->string, "\n";
+        }
+        elsif ($format eq 'dot') { 
+            my $i;
+            for ($i = 0; $i < scalar(@vals); $i++) {
+                if (!defined($vals[$i])) {
+                    $vals[$i] = "unknown";
+                }
+                else {
+                    my @parts = split(/\./, $vals[$i]);
+                    $vals[$i] = $parts[0];
+                }
+            }
+            # We're going to set a weight of 1 to begin with...
+            for ($i = 0; $i < scalar(@vals)-1; $i++) {
+                $graph{$vals[$i+1]}{$vals[$i]} = 1;
+            }
+            $graph{yahoo}{$vals[$i]} = 1;
+        }
+    }
+    if ($format eq 'dot') {
+	# run through the graph structure
+	print "digraph G {\n";
+	print "\tnode [shape=plaintext,height=.1,width=.1," .
+	      "fontsize=12,fontcolor=purple];\n";
+	print "\tedge [arrowhead=none];\n";
+	print "\tnodesep=.03;\n";
+	print "\trankdir=RL;\n";
+
+	foreach my $src (keys %graph) {
+	    foreach my $dest (keys %{$graph{$src}}){
+		print "\t\"$src\" -> \"$dest\"\n";
+	    }
+	}
+	print "}\n";
+    }
+}
+elsif ($opt{massrename}) {
+    my @dest_names;
+    if ($opt{massrename} !~ /^nyn(yss)?$/) {
+	die "$0: cannot expand range '$opt{massrename}'\n"
+	  unless @dest_names = sorted_expand_range($opt{massrename});
+	die "$0: was given " . $it->matches . " source nodes and " .
+	    scalar(@dest_names) . " destination names\n"
+	  unless ($it->matches == scalar(@dest_names));
+    }
+
+    my $i;
+    while (my $node = $it->next) {
+	print $node->name, ': ';
+
+	if (defined($i)) {
+	    $i++;
+	}
+	else {
+	    $i = 0;
+	}
+
+	my $dest;
+	if ($opt{massrename} =~ /^nyn(yss)?$/) {
+	    my $ytag = $node->ytag;
+	    unless ($ytag) {
+		warn "ERROR: source node has no ytag, cannot NYN-ize\n";
+		next;
+	    }
+	    if ($opt{massrename} eq 'nyn') {
+		$dest = 'nyn' . $ytag . '.inktomisearch.com';
+	    }
+	    else {
+		my $site;
+		eval { $site = $node->siteid->name };
+		unless ($site) {
+		    warn "ERROR: source node has no site, cannot YSS-NYN-ize\n";
+		    next;
+		}
+		$dest = 'nyn' . $ytag . '.yss.' . $site . '.yahoo.com';
+	    }
+	}
+	else {
+	    $dest  = $dest_names[$i];
+	    $dest .= '.inktomisearch.com' if ($dest !~ /\.(com|net)$/);
+	}
+
+	if ($node->name eq $dest) {
+	    warn "ERROR: source and destination names are identical\n";
+	    next;
+	}
+
+	if (Seco::OpsDB::Node->retrieve(name => $dest)) {
+	    warn "ERROR: destnation node already exists [$dest]\n";
+	    next;
+	}
+
+	unless ($opt{update}) {
+	    print "would have renamed to $dest\n";
+	    next;
+	}
+
+	$node->name($dest);
+	$node->update;
+	print "renamed to $dest\n";
+    }
+}
+elsif ($opt{update}) {
+    while (my $node = $it->next) {
+
+	my $inkt_p = Seco::OpsDB::Property->retrieve(name => 'yst');
+	die "cannot determine 'yst' property!" unless $inkt_p;
+
+	printf "updating %s...", $node->name;
+
+	# handle any group changes first
+	for my $group_op (qw/set add del/) {
+	    my @groups;
+	    if (exists ($opt{"${group_op}-group"})) {
+		if ($opt{"${group_op}-group"} =~ /,/) {
+		    @groups = split(/,/, $opt{"${group_op}-group"});
+		}
+		else {
+		    push @groups, $opt{"${group_op}-group"};
+		}
+
+		# turn a list of group names into a list of group objects
+		map {
+		    my $name = $_;
+		    $_ = Seco::OpsDB::NodeGroup->retrieve(
+		           name => $name,
+			   prop_id => $inkt_p,
+			 );
+		    die "cannot locate group '$name'!" unless $_;
+		} @groups;
+
+		# finally the group mutations
+		if ($group_op eq 'add' or $group_op eq 'set') {
+		    if ($node->groups) {
+			$node->del_all_groups if $group_op eq 'set';
+			my @curr_groups = map { $_->name } $node->groups;
+			for my $g (@groups) {
+			    next if grep { $_ eq $g->name } @curr_groups;
+			    $node->add_group($g);
+			}
+		    }
+		    else {
+			$node->add_group($_) for @groups;
+		    }
+		}
+		elsif ($group_op eq 'del') {
+		    $node->del_group($_) for @groups;
+		}
+	    }
+	}
+
+	foreach my $key (@searchkeys) {
+	    next if ($key eq 'range');
+	    next if ($key eq 'group');
+	    next if ($key eq 'node_id');
+	    my $search = $opt{$key};
+	    if (ref($opt{$key})) {
+		if ($key eq 'site') {
+		    $node->siteid($opt{$key});
+		}
+		elsif ($key eq 'switch') {
+		    $node->netswitch($opt{$key});
+		}
+		else {
+		    $node->$key($opt{$key});
+		}
+	    }
+	    elsif ($key eq 'property') {
+		# kindofa hack, we always specify US properties for updates
+		my $c = Seco::OpsDB::Country->retrieve(name => 'United States');
+		die "no such $key '$search'\n" unless
+		  $opt{$key} = Seco::OpsDB::Property->retrieve(
+		    name => $opt{$key},
+		    country_id => $c,
+		  );
+		$node->property($opt{$key});
+	    }
+	    elsif (($key eq 'order') or ($key eq 'project')) {
+		my $inkt_p;
+		die "cannot find 'yst' property!" unless $inkt_p =
+		  Seco::OpsDB::Property->retrieve(name => 'yst');
+		die "no such $key: '$search'\n" unless
+		  $opt{$key} =
+		    Seco::OpsDB::NodeGroup->retrieve(name => $opt{$key},
+						     prop_id => $inkt_p);
+	 	    $node->$key($opt{$key});
+	    }
+	    elsif ($key eq 'site') {
+		die "no such $key: '$search'\n" unless
+		  $opt{$key} = Seco::OpsDB::Site->retrieve(name => $opt{$key});
+		$node->siteid($opt{$key});
+	    }
+	    elsif ($key eq 'console') {
+		if ($opt{$key} ne '') {
+		    die "no such $key: '$search'\n" unless
+		      $opt{$key} =
+		        Seco::OpsDB::Node->retrieve(name => $opt{$key});
+		}
+		$node->$key($opt{$key});
+	    }
+	    elsif ($key eq 'model') {
+		die "no such $key: '$search'\n" unless
+		  $opt{$key} = Seco::OpsDB::Model->retrieve(
+		                 name => $opt{$key});
+		  $node->model($opt{$key});
+	    }
+	    elsif ($key eq 'bootbox') {
+		die "no such $key: '$search'\n" unless
+		  $opt{$key} = Seco::OpsDB::Node->retrieve(
+		                 name => $opt{$key},
+				 type_id => Seco::OpsDB::Dictionary->retrieve(
+				               name => 'bootbox'));
+		  $node->bootbox($opt{$key});
+	    }
+	    elsif ($key eq 'bootbox2') {
+		die "no such $key: '$search'\n" unless
+		  $opt{$key} = Seco::OpsDB::Node->retrieve(
+		                 name => $opt{$key},
+				 type_id => Seco::OpsDB::Dictionary->retrieve(
+				               name => 'bootbox'));
+		  $node->bootbox2($opt{$key});
+	    }
+	    elsif ($key eq 'switch') {
+		die "no such $key: '$search'\n" unless
+		  $opt{$key} = Seco::OpsDB::Node->retrieve(
+		                 name => $opt{$key},
+				 type_id => Seco::OpsDB::Dictionary->retrieve(
+				               name => 'switch'));
+		$node->netswitch($opt{$key});
+	    }
+	    elsif ($key eq 'nodetype') {
+		die "no such $key: '$opt{type}'\n" unless
+		  $opt{$key} = Seco::OpsDB::Dictionary->retrieve(
+		                 name      => $opt{type},
+				 parent_id => Seco::OpsDB::Dictionary->retrieve(
+				   name => 'assetType'));
+		$node->nodetype($opt{$key});
+	    }
+	    elsif ($key eq 'mac') {
+		die "invalid MAC address: '$search'\n" unless $opt{$key} =~
+		  /^[a-f0-9]{2}:[a-f0-9]{2}:[a-f0-9]{2}:[a-f0-9]{2}:[a-f0-9]{2}:[a-f0-9]{2}$/i;
+		$node->mac($opt{$key});
+	    }
+	    else {
+		$node->$key($opt{$key});
+	    }
+	    $node->update;
+	}
+
+	print "ok\n";
+    }
+}
+else {
+    if ($it->matches > 1) {
+        if (! defined $opt{noheader}) {
+	    printf "%-25s %-8s %-8s %-4s %29s\n",
+	           'nodename', 'ytag', 'site', 'model',
+		   '[' . $it->matches . ' matches]';
+	    print  '-' x 79, "\n";
+        }
+	while (my $node = $it->next) {
+	    my $name  = $node->name;
+            my $siteid = $node->siteid ? $node->siteid->name : "N/A";
+	    my $model = ($node->model) ? $node->model->name : undef;
+	    $name =~ s/\.(inktomisearch|yahoo)\.com$//;
+	    printf "%-25s %-8s %-8s %-4s\n",
+	           $name, $node->ytag, $siteid, $model;
+	}
+    }
+    else {
+        my $node = $it->next;
+        my $site     = ($node->siteid)   ? $node->siteid->name    : 'UNKNOWN';
+        my $type     = ($node->nodetype) ? $node->nodetype->name  : 'UNKNOWN';
+        my $console  = ($node->console)  ? $node->console->name   : 'UNKNOWN';
+        my $bootbox  = ($node->bootbox)  ? $node->bootbox->name   : 'UNKNOWN';
+        my $bootbox2 = ($node->bootbox2) ? $node->bootbox2->name  : 'UNKNOWN';
+        my $switch = ($node->netswitch)  ? $node->netswitch->name : 'UNKNOWN';
+        my $property = ($node->property) ? $node->property->name  : 'UNKNOWN';
+	my $model    = ($node->model)    ? $node->model->name     : 'UNKNOWN';
+	my $groups = join(',', map { $_->name } $node->groups);
+	my $location = join('/', map { $node->$_ } qw/loccage locarea locrow
+	                                              locrack locshelf locside/);
+
+        if ($opt{verbose}) {
+	    print '=' x 79, "\n";
+	    print "[ identification ]\n\n";
+	    printf "nodename:        %s\n", $node->name;
+	    printf "ytag:            %s\n", $node->ytag;
+	    printf "serial:          %s\n", $node->serialno;
+	    printf "model:           %s\n", $model;
+	    printf "site:            %s\n", $site;
+	    printf "groups:          %s\n", $groups;
+	    printf "ponumber:        %s\n", $node->ponumber;
+	    printf "property:        %s\n", $property;
+	    printf "created:         %s\n", $node->c_time->cdate;
+	    printf "status:          %s\n", $node->status;
+	    printf "type:            %s\n", $type;
+	    printf "purpose:         %s\n", $node->purpose;
+	    printf "description:     %s\n", $node->description;
+	    print '=' x 79, "\n";
+	    print "[ network ]\n\n";
+	    printf "mac address:     %s\n", $node->mac;
+	    printf "console server:  %s\n", $console;
+	    printf "console port:    %d\n", $node->cport;
+	    printf "switch:          %s\n", $switch;
+	    printf "switch port:     %d\n", $node->sport;
+	    printf "bootbox:         %s\n", $bootbox;
+	    printf "bootbox port:    %d\n", $node->bport;
+	    printf "bootbox mod:     %d\n", $node->bmodule;
+	    printf "bootbox plug:    %d\n", $node->bplug;
+	    printf "bootbox2:        %s\n", $bootbox2;
+	    printf "bootbox2 port:   %d\n", $node->bport2;
+	    printf "bootbox2 mod:    %d\n", $node->bmodule2;
+	    printf "bootbox2 plug:   %d\n", $node->bplug2;
+	    print '=' x 79, "\n";
+	    print "[ location ]\n\n";
+	    printf "room:   %d\n", $node->locroom;
+	    printf "cage:   %d\n", $node->loccage;
+	    printf "area:   %s\n", $node->locarea;
+	    printf "row:    %d\n", $node->locrow;
+	    printf "rack:   %d\n", $node->locrack;
+	    printf "side:   %s\n", $node->locside;
+	    printf "shelf:  %d\n", $node->locshelf;
+	    print '=' x 79, "\n";
+
+	    if (my $hist = $node->history) {
+	        print "[ history ]\n\n";
+	        while (my $ent = $hist->next) {
+		    printf "<entry %s by %s on %s>\n\n",
+		    $ent->subject, $ent->author->name, $ent->timestamp->cdate;
+		    print $ent->history, "\n\n";
+		    print '-' x 79, "\n\n";
+		}
+	    }
+	}
+	else {
+	    print '=' x 79, "\n";
+	    printf "nodename:            %s\n", $node->name;
+	    printf "ytag:                %s\n", $node->ytag;
+	    printf "serial:              %s\n", $node->serialno;
+	    printf "model:               %s\n", $model;
+	    printf "site:                %s\n", $site;
+	    printf "location:            %s\n", $location;
+	    printf "groups:              %s\n", $groups;
+	    printf "property:            %s\n", $property;
+	    printf "created:             %s\n", $node->c_time->cdate;
+	    printf "status:              %s\n", $node->status;
+	    printf "type:                %s\n", $type;
+	    printf "purpose:             %s\n", $node->purpose;
+	    printf "description:         %s\n", $node->description;
+	    printf "mac address:         %s\n", $node->mac;
+	    printf "console/port:        %s/%d\n", $console, $node->cport;
+	    printf "switch/port:         %s/%d\n", $switch,  $node->sport;
+	    printf "bootbox/port/plug:   %s/%d/%d\n", $bootbox, $node->bport,
+	                                                        $node->bplug;
+	    printf "bootbox2/port/plug:  %s/%d/%d\n", $bootbox2, $node->bport2,
+	                                                         $node->bplug2;
+	    print '=' x 79, "\n";
+	}
+    }
+}
+
+exit(0);
+
+sub usage {
+    print<<EOT;
+usage: $0 --help
+       $0 --timestamp
+       $0 --list-{orders,projects,properties,sites,manuf,types}
+       $0 <nodename> [--verbose]
+       $0 <source criteria> --massrename nyn [--update]
+       $0 <source criteria> --massrename newnames100-500 [--update]
+       $0 [<nodelist, regex> | -r <seco range>]
+                             --ytag=n,...  --site=n,...    --model=n,...
+                             --order=n,... --owner=n,...   --property=n,...
+			     --project=n,.
+			     --site=n,...  --switch=n,...  --sport=n,...
+			     --type=n,...  --manuf=n,...   --status=n,...
+			     --bootbox     --bport         --bplug
+			     --bootbox2    --bport2        --bplug2
+			     --cport=n,... --console=n,... --description=n,...
+			     --cbridge=n,.. --mac=n,...    --loccab=n,...
+                             --loccage=n    --locroom=n    --locarea=n    
+                             --locrow=n     --locrack=n    --locside=n    
+                             --locshelf=n   --racksize=n   --serialno=n   
+                             --ponumber=n
+			     [--update]  [--verbose]  [--outrange]   [--count]
+                             [--limit=N] [--noheader] [--shortrange]
+			     [--csv=name,site,model,console,cport,order,...]
+                             [--dot=name,site,switch,...]
+
+$0 --fat  ....   to make a temp copy of the DB for fat queries
+See "$0 --help" for more detailed usage information
+EOT
+    exit(1);
+}
+
+sub help {
+    print<<EOT;
+$0 usage overview:
+
+displaying a node entry with full history:
+------------------------------------------
+$0 <nodename> --verbose
+
+listing/searching for nodes:
+----------------------------
+$0 [-r <seco range>] [criteria] [--verbose]
+
+updating a node(s):
+-------------------
+$0 -r <seco range> --site=re1 --property=yst --update
+
+switches for searching/updating entries:
+----------------------------------------
+-r,--range         a seco range of nodes, mandatory for -U
+-n,--name          nodename (.inktomisearch.com implied if !fqdn)
+-A,--ytag          asset tag 
+-sn,--serialno     serial number
+-T,--type          type/classification of node (host, console, switch, etc)
+-X,--status        current status (active, broken, inventory, etc)
+-M,--manuf         manufacturer (Rackable, HP, IBM, Sun, etc)
+-m,--model         model name
+-o,--order         associated YST order (yst-<ordername>)
+-p,--project       associated YST project (yst-proj-<projname>)
+-po,--ponumber     associated YST purchase order number
+-O,--owner         group owning node (currently only prod-eng)
+-P,--property      associated Y! property
+-s,--site          site (re1, sci, scd, etc)
+-a,--mac           MAC address of eth0 interface
+-cb,--cbridge      the node we use to reach the conserver (sc5-console-3, etc)
+-C,--console       name of console server (fqdn)
+-cp,--cport        console port
+-b,--bootbox       hostname of bootbox
+-bp,--bport        bootbox listen port
+-bP,--bplug        plug number of device
+-b2,--bootbox2     hostname of second bootbox
+-bp2,--bport2      second bootbox listen port
+-bP2,--bplug2      second plug number of device
+-S,--switch        name of switch (fqdn)
+-sp,--sport        switch port
+-d,--description   a free-form text blurb
+-rs,--racksize     number of rack units
+-L,--loccab        Combo of site,loccage,locarea,locrow,locrack separated 
+                   by a forward slash(EX: sk1/0/A/2/3)
+-LC,--loccage      cage number
+-LM,--locroom      datacenter room number
+-LA,--locarea      area name
+-LW,--locrow       row number
+-LK,--locrack      rack location
+-LE,--locside      rack side
+-LF,--locshelf     rack elevation
+-v,--verbose       if looking at node detail, give full history
+-U,--update        make changes to opsdb
+                   NOTE: this uses whatever was passed to --range as
+		         the source criteria and all other params as
+			 what is to be updated
+
+output filters for searches:
+----------------------------
+-l,--limit=N       limit number of matching entries to N, especially useful
+                   in conjunction with -R
+-R,--outrange      output results of search criteria as a seco range
+-SR,--shortrange   output as a seco range without inktomisearch.com fqdn
+-Z,--sort=field,.. sort results on field (defaults to --sort=name)
+--csv=field,...    output results of search criteria as CSV,
+                   optionally passing a list of fields to use
+		   (defaults to --csv=name,site,model,console,cport,order)
+--dot=field,...    output results of search in graphviz dot format,
+                   optionally passing a list of fields to use
+                   (defaults to --dot=name,switch,site)
+-c,--count         just return a count of the nodes matched with given criteria
+--noheader         do not print the header for standard search results
+-mr,--massrename   this will rename all of the nodes that matched the given
+                   search to the range passed to --massrename
+		   this can also be passed the string 'nyn' to un-purpose
+		   a range of nodes
+		   (this operand is a no-op unless --update is also present)
+
+getting at metadata:
+--------------------
+-ts,--timestamp     display timestamp of opsdb data (if using a replica)
+-lo,--list-orders   dump a list of all known YST orders
+-lp,--list-projects dump a list of all known YST projects
+-lP,--list-prop     dump a list of all known properties
+-ls,--list-sites    dump a list of all known sites
+-lm,--list-manuf    dump a list of all known manufacturers
+-lt,--list-types    dump a list of all known nodetypes
+
+parsing location (-csv locinfo) output:
+---------------------------------------
+opsdb <somehost> -csv locinfo produces a string like "0/E/15/6/12/a/158245"
+
+field  | translation
+-------|-------------------------------------------------------------
+     0 | this is the cage with in the facility
+     E | the area or room
+    15 | the row
+     6 | the rack
+    12 | the U (counted from the bottom up)
+     a | which side the host is located on (Rackable hosts have a/b)
+158245 | the yahoo asset tag
+
+EOT
+    exit(0);
+}
+
+sub pony {
+    my $color = shift;
+    print $color if $color;
+
+    require "Seco/Pony.pm" or return;
+    print Seco::Pony::get_pony();
+
+    print "\e[0m" if ($color);
+    exit(0);
+}

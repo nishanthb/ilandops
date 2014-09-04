@@ -1,0 +1,21 @@
+#! /usr/bin/perl
+
+use strict;
+
+$ENV{"PATH"} = "/sbin:/usr/sbin:/bin:/usr/bin";
+
+$ENV{"LANG"} = "C";
+$ENV{"LC_ALL"} = "C";
+
+
+my ($ugline) = grep { /UG/} `route -n`;
+my @ugtokens = split /\s+/, $ugline;
+my $interface = pop @ugtokens;
+my $ifconfig = `ifconfig`;
+
+while ($ifconfig =~ /$interface\s+.*?addr:(\S+)/msg) {
+  my $ip = $1;
+#  next if ($ip =~ m/^(10|127|192)\./);
+  next if ($ip =~ m/^(127)\./);
+  print "$ip\n";
+}

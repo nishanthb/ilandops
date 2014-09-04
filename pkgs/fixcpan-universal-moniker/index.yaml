@@ -1,0 +1,30 @@
+---
+default:
+  name: fixcpan-universal-moniker
+  cpan-module: UNIVERSAL::moniker
+  summary: "CPAN UNIVERSAL::moniker"
+  perl: /usr/local/bin/perl
+  release: 1
+
+yss.redhat:
+  builds:
+    - cpan-universal-moniker
+yst.redhat:
+  builds:
+    - cpan-universal-moniker
+    - fixcpan-universal-moniker
+yst.debian:
+  builds:
+    - fixcpan-universal-moniker
+
+fixcpan-universal-moniker:
+  # Only used by YST.
+  # All builds of fixperl are i386 - even on x86_64.
+  meta: 1
+  preferarch: i386
+  name: fixcpan-universal-moniker
+  perl: /usr/local/bin/perl
+cpan-universal-moniker:
+  name: cpan-universal-moniker
+  perl: /usr/bin/perl
+
