@@ -3,7 +3,9 @@ default:
   name: fixcpan-class-dbi-abstractsearch
   summary: "CPAN Class::DBI::AbstractSearch"
   cpan-module: Class::DBI::AbstractSearch
+  perl: /usr/local/bin/perl
   version: 0.07
+  release: 1
   env:
     PERLTEST: no
 

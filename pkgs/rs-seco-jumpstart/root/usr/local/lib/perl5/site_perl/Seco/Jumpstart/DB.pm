@@ -28,7 +28,7 @@ sub get_instance {
 
     $instance->{dbh} =
       DBI->connect("dbi:SQLite:$filename", "", "",
-        { RaiseError => 1, AutoCommit => 0 });
+        { sqlite_use_immediate_transaction => 0, RaiseError => 1, AutoCommit => 0 });
 
     return $instance;
 }

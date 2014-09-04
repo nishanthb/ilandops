@@ -92,9 +92,13 @@ let clean_up hostname =
       String.sub hostname 0 (n - 1)
     else
       hostname in
+  let rstack = remove_domain host_no_dot ".rangestack.com" in
+	rstack
+(*
   let inkt = remove_domain host_no_dot ".inktomisearch.com" in
   let yst = remove_domain inkt ".yst.corp.yahoo.com" in
     yst
+*)
 
 (* return a list of all the IPs (with the hostnames associated with them) *)
 let all_ip_hosts () =

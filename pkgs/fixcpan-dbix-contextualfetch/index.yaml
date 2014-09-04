@@ -1,8 +1,10 @@
 ---
 default:
-  name: fatcpan-dbix-contextualfetch
+  name: fixcpan-dbix-contextualfetch
   cpan-module: DBIx::ContextualFetch
+  perl: /usr/local/bin/perl
   summary: "CPAN DBIx::ContextualFetch"
+  release: 1
 
 yss.redhat:
   builds:
