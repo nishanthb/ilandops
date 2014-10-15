@@ -1,0 +1,258 @@
+#+TITLE:     org-mode.org
+#+AUTHOR:    Ting Yu
+#+EMAIL:     16667737@qq.com
+#+DATE:      2014-10-07 二
+#+DESCRIPTION:
+#+KEYWORDS:
+#+LANGUAGE:  en
+#+OPTIONS:   H:3 num:t toc:t \n:nil @:t ::t |:t ^:t -:t f:t *:t <:t
+#+OPTIONS:   TeX:t LaTeX:t skip:nil d:nil todo:t pri:nil tags:not-in-toc
+#+INFOJS_OPT: view:nil toc:nil ltoc:t mouse:underline buttons:0 path:http://orgmode.org/org-info.js
+#+EXPORT_SELECT_TAGS: export
+#+EXPORT_EXCLUDE_TAGS: noexport
+#+LINK_UP:   
+#+LINK_HOME: 
+#+XSLT:
+#+TAGS: 
+# org-mode 常见问题与自我测试(self test)
+
+
+
+
+** <F12>-SPACE 的定义 org-agenda-custom-commands
+
+*** 下面是原始的 org-agenda-custom-commands.
+
+#+BEGIN_SRC emacs-lisp
+(setq org-agenda-custom-commands
+      (quote (("N" "Notes" tags "NOTE"
+               ((org-agenda-overriding-header "Notes")
+                (org-tags-match-list-sublevels t)))
+              ("h" "Habits" tags-todo "STYLE=\"habit\""
+               ((org-agenda-overriding-header "Habits")
+                (org-agenda-sorting-strategy
+                 '(todo-state-down effort-up category-keep))))
+              (" " "Agenda"
+               ((agenda "" nil)
+                (tags "REFILE"
+                      ((org-agenda-overriding-header "Notes and Tasks to Refile")
+                       (org-agenda-overriding-header "Tasks to Refile")))
+                (tags-todo "-CANCELLED/!"
+                           ((org-agenda-overriding-header "Stuck Projects")
+                            (org-tags-match-list-sublevels 'indented)
+                            (org-agenda-skip-function 'bh/skip-non-stuck-projects)))
+                (tags-todo "-WAITING-CANCELLED/!NEXT|STARTED"
+                           ((org-agenda-overriding-header "Next Tasks")
+                            (org-agenda-skip-function 'bh/skip-projects-and-habits)
+                            (org-agenda-todo-ignore-scheduled t)
+                            (org-agenda-todo-ignore-deadlines t)
+                            (org-tags-match-list-sublevels t)
+                            (org-agenda-sorting-strategy
+                             '(todo-state-down effort-up category-keep))))
+                (tags-todo "-REFILE-CANCELLED/!-NEXT-STARTED-WAITING"
+                           ((org-agenda-overriding-header "Tasks")
+                            (org-agenda-skip-function 'bh/skip-projects-and-habits)
+                            (org-tags-match-list-sublevels 'indented)
+                            (org-agenda-todo-ignore-scheduled t)
+                            (org-agenda-todo-ignore-deadlines t)
+                            (org-agenda-sorting-strategy
+                             '(category-keep))))
+                (tags-todo "-CANCELLED/!"
+                           ((org-agenda-overriding-header "Projects")
+                            (org-agenda-skip-function 'bh/skip-non-projects)
+                            (org-tags-match-list-sublevels 'indented)
+                            (org-agenda-sorting-strategy
+                             '(category-keep))))
+                (todo "WAITING|SOMEDAY"
+                      ((org-agenda-overriding-header "Waiting and Postponed tasks")
+                       (org-agenda-skip-function 'bh/skip-projects-and-habits)))
+                (tags "-REFILE/"
+                      ((org-agenda-overriding-header "Tasks to Archive")
+                       (org-agenda-skip-function 'bh/skip-non-archivable-tasks))))
+               nil)
+              ("r" "Tasks to Refile" tags "REFILE"
+               ((org-agenda-overriding-header "Notes and Tasks to Refile")
+                (org-agenda-overriding-header "Tasks to Refile")))
+              ("#" "Stuck Projects" tags-todo "-CANCELLED/!"
+               ((org-agenda-overriding-header "Stuck Projects")
+                (org-tags-match-list-sublevels 'indented)
+                (org-agenda-skip-function 'bh/skip-non-stuck-projects)))
+              ("n" "Next Tasks" tags-todo "-WAITING-CANCELLED/!NEXT|STARTED"
+               ((org-agenda-overriding-header "Next Tasks")
+                (org-agenda-skip-function 'bh/skip-projects-and-habits)
+                (org-agenda-todo-ignore-scheduled t)
+                (org-agenda-todo-ignore-deadlines t)
+                (org-tags-match-list-sublevels t)
+                (org-agenda-sorting-strategy
+                 '(todo-state-down effort-up category-keep))))
+              ("R" "Tasks" tags-todo "-REFILE-CANCELLED/!-NEXT-STARTED-WAITING"
+               ((org-agenda-overriding-header "Tasks")
+                (org-agenda-skip-function 'bh/skip-projects-and-habits)
+                (org-tags-match-list-sublevels 'indented)
+                (org-agenda-sorting-strategy
+                 '(category-keep))))
+              ("p" "Projects" tags-todo "-CANCELLED/!"
+               ((org-agenda-overriding-header "Projects")
+                (org-agenda-skip-function 'bh/skip-non-projects)
+                (org-tags-match-list-sublevels 'indented)
+                (org-agenda-sorting-strategy
+                 '(category-keep))))
+              ("w" "Waiting Tasks" todo "WAITING|SOMEDAY"
+               ((org-agenda-overriding-header "Waiting and Postponed tasks"))
+               (org-agenda-skip-function 'bh/skip-projects-and-habits))
+
+)))
+#+END_SRC
+
+*** 下面是我要修改的 org-agenda-custom-commands.
+
+#+BEGIN_SRC emacs-lisp
+(setq org-agenda-custom-commands
+      (quote (("N" "Notes" tags "NOTE"
+               ((org-agenda-overriding-header "Notes")
+                (org-tags-match-list-sublevels t)))
+	      ("r" "Tasks to Refile" tags "REFILE"
+               ((org-agenda-overriding-header "Notes and Tasks to Refile")
+                (org-agenda-overriding-header "Tasks to Refile")))
+              (" " "Agenda"
+               ((agenda "" nil)
+                (tags "REFILE"
+                      ((org-agenda-overriding-header "Notes and Tasks to Refile")
+                       (org-agenda-overriding-header "Tasks to Refile")))
+                (tags-todo "-CANCELLED/!"
+                           ((org-agenda-overriding-header "Stuck Projects")
+                            (org-tags-match-list-sublevels 'indented)
+                            (org-agenda-skip-function 'bh/skip-non-stuck-projects)))
+                (tags-todo "-WAITING-CANCELLED/!NEXT|STARTED"
+                           ((org-agenda-overriding-header "Next Tasks")
+                            (org-agenda-skip-function 'bh/skip-projects-and-habits)
+                            (org-agenda-todo-ignore-scheduled t)
+                            (org-agenda-todo-ignore-deadlines t)
+                            (org-tags-match-list-sublevels t)
+                            (org-agenda-sorting-strategy
+                             '(todo-state-down effort-up category-keep))))
+                (tags-todo "-REFILE-CANCELLED/!-NEXT-STARTED-WAITING"
+                           ((org-agenda-overriding-header "Tasks")
+                            (org-agenda-skip-function 'bh/skip-projects-and-habits)
+                            (org-tags-match-list-sublevels 'indented)
+                            (org-agenda-todo-ignore-scheduled t)
+                            (org-agenda-todo-ignore-deadlines t)
+                            (org-agenda-sorting-strategy
+                             '(category-keep))))
+                (tags-todo "-CANCELLED/!"
+                           ((org-agenda-overriding-header "Projects")
+                            (org-agenda-skip-function 'bh/skip-non-projects)
+                            (org-tags-match-list-sublevels 'indented)
+                            (org-agenda-sorting-strategy
+                             '(category-keep))))
+                (todo "WAITING|SOMEDAY"
+                      ((org-agenda-overriding-header "Waiting and Postponed tasks")
+                       (org-agenda-skip-function 'bh/skip-projects-and-habits)))
+		))
+               nil)
+)))
+
+#+END_SRC
+
+#+results:
+| N | Notes           | tags                                                                                                                                                                                                                                                                                                                                                               | NOTE                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | ((org-agenda-overriding-header Notes) (org-tags-match-list-sublevels t))                                                              |
+| r | Tasks to Refile | tags                                                                                                                                                                                                                                                                                                                                                               | REFILE                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | ((org-agenda-overriding-header Notes and Tasks to Refile) (org-agenda-overriding-header Tasks to Refile))                             |
+|   | Agenda          | ((agenda  nil) (tags REFILE ((org-agenda-overriding-header Notes and Tasks to Refile) (org-agenda-overriding-header Tasks to Refile))) (tags-todo -CANCELLED/! ((org-agenda-overriding-header Stuck Projects) (org-tags-match-list-sublevels (quote indented)) (org-agenda-skip-function (quote bh/skip-non-stuck-projects)))) (tags-todo -WAITING-CANCELLED/!NEXT | STARTED ((org-agenda-overriding-header Next Tasks) (org-agenda-skip-function (quote bh/skip-projects-and-habits)) (org-agenda-todo-ignore-scheduled t) (org-agenda-todo-ignore-deadlines t) (org-tags-match-list-sublevels t) (org-agenda-sorting-strategy (quote (todo-state-down effort-up category-keep))))) (tags-todo -REFILE-CANCELLED/!-NEXT-STARTED-WAITING ((org-agenda-overriding-header Tasks) (org-agenda-skip-function (quote bh/skip-projects-and-habits)) (org-tags-match-list-sublevels (quote indented)) (org-agenda-todo-ignore-scheduled t) (org-agenda-todo-ignore-deadlines t) (org-agenda-sorting-strategy (quote (category-keep))))) (tags-todo -CANCELLED/! ((org-agenda-overriding-header Projects) (org-agenda-skip-function (quote bh/skip-non-projects)) (org-tags-match-list-sublevels (quote indented)) (org-agenda-sorting-strategy (quote (category-keep))))) (todo WAITING | SOMEDAY ((org-agenda-overriding-header Waiting and Postponed tasks) (org-agenda-skip-function (quote bh/skip-projects-and-habits))))) |
+
+* 当面对一个普通的org mode 文档的时候经常需要用到的一些快捷键.
+
+** 面对一个空文档,或者已经存在的org-mode文档的时候. 常用的编辑模式
+   下面几个如果学会就可以欢快对org-mode 作结构化编辑了. 更多相信的信息可以
+   参考 [[info:org#Structure%20editing][info:org#Structure editing]]
+ 
+#+BEGIN_EXAMPLE
+   M-<RET> : 建立当前的文章节点.
+   M-left/right: promote or demote 文章节点.
+   M-h  : org-mark-element , 对当前的org 节点下的元素进行整体复制.
+   C-c C-w: refile 到其他的地方去
+#+END_EXAMPLE
+
+* How to insert export the option template ?
+
+#+BEGIN_EXAMPLE
+C-c C-e t
+#+END_EXAMPLE
+
+* 如何在org-mode 中交叉引用,加入一个link？
+
+#+BEGIN_EXAMPLE
+c-c c-l  'org-insert-link
+#+END_EXAMPLE
+
+* 如何让 return 能跟入到link当中(return follows link)?
+#+BEGIN_SRC emacs-lisp
+;; @init.el
+  (setq org-return-follows-link t)
+#+END_SRC
+
+
+* 如何给当前小结加一个 notes?
+  - Note taken on [2014-08-06 三 17:18] \\
+    这就是一个notes
+
+c-c c-z  'org-add-note
+
+* 给当前的小节加一个 [[http://baike.baidu.com/view/1052579.htm][UUID]], 即 store link
+  :PROPERTIES:
+  :ID:       dfe52bf0-d7f8-4d38-a144-29a2fd7bc4d2
+  :END: 
+#+BEGIN_SRC emacs-lisp
+;; C-c l.
+(org-store-link ARG)
+#+END_SRC
+
+* 当一个小结加入了 link PROPERTIES 有什么方便的地方？
+相当与给当前小节打了一个tag. 便于日后再引入link的时候方便加入
+
+* artist-mode 中如何启动绘图的时候使用ido 提示的形状?
+
+  参考 [[http://www.emacswi.org/emacs/ArtistMode][artist-mode]] 介绍, 中文参考 [[http://emacser.com/artist-mode.htm][emacser 中文 artist-mode]]
+  一个好玩的 [[http://www.cinsk.org/emacs/emacs-artist.html][artist flash demo]] 介绍
+  - 启动 M-x artist-mode
+  - C-c C-a C-o
+
+* 如何在终端下使用鼠标事件.
+
+#+BEGIN_QUOTE
+M-x  xterm-mouse-mode 
+#+END_QUOTE
+
+可以解决终端下artist-mode绘图的问题，同时也可以使用鼠标进行切换窗口.
+
+* 如何在x emacs 下toggle-inline-image?
+#+BEGIN_VERSE
+`C-c C-x C-v     (`org-toggle-inline-images')' 
+     Toggle the inline display of lin images.  Normally this will 
+     only inline images that have no description part in the lin i.e. 
+     images that will also be inlined during export.  When called with 
+     a prefix argument, also display images that do have a lin
+     description.  You can asfor inline images to be displayed at 
+     startup by configuring the variable 
+     `org-startup-with-inline-images'(5).  
+#+END_VERSE
+     
+* 文档中嵌入 code 的 Easy Templates.
+  [[info:org#Easy%20Templates][info:org#Easy Templates]]
+
+  SRC/EXAMPLE/QUOTE 是常用的三个标记.
+#+BEGIN_EXAMPLE
+< 
+`s'     `#+BEGIN_SRC     ... #+END_SRC'
+`e'     `#+BEGIN_EXAMPLE ... #+END_EXAMPLE'
+`q'     `#+BEGIN_QUOTE   ... #+END_QUOTE'
+`v'     `#+BEGIN_VERSE   ... #+END_VERSE'
+`c'     `#+BEGIN_CENTER  ... #+END_CENTER'
+`l'     `#+BEGIN_LaTeX   ... #+END_LaTeX'
+`L'     `#+LaTeX:'
+`h'     `#+BEGIN_HTML    ... #+END_HTML'
+`H'     `#+HTML:'
+`a'     `#+BEGIN_ASCII   ... #+END_ASCII'
+`A'     `#+ASCII:'
+`i'     `#+INDEX:' line
+`I'     `#+INCLUDE:' line
+#+END_EXAMPLE

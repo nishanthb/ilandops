@@ -1,0 +1,24 @@
+#+TITLE:     opsdb.org
+#+AUTHOR:    Ting Yu
+#+EMAIL:     16667737@qq.com
+#+DATE:      2014-10-07 二
+#+DESCRIPTION:
+#+KEYWORDS:
+#+LANGUAGE:  en
+#+OPTIONS:   H:3 num:t toc:t \n:nil @:t ::t |:t ^:t -:t f:t *:t <:t
+#+OPTIONS:   TeX:t LaTeX:t skip:nil d:nil todo:t pri:nil tags:not-in-toc
+#+INFOJS_OPT: view:nil toc:nil ltoc:t mouse:underline buttons:0 path:http://orgmode.org/org-info.js
+#+EXPORT_SELECT_TAGS: export
+#+EXPORT_EXCLUDE_TAGS: noexport
+#+LINK_UP:   
+#+LINK_HOME: 
+#+XSLT:
+
+* opsdb 
+** data init
+#+BEGIN_EXAMPLE
+insert or replace into mac (node_id,mac) values (0,'52:54:00:12:34:56');
+insert or replace into model (model_id,name,description,max,min,is_qualified,c_time,m_time) values (0,'QEMU','Qemu Virtual Machine',0.9,0.1,1,strftime('%Y-%m-%d %H:%M:%S','now'),strftime('%Y-%m-%d %H:%M:%S','now'));
+insert or replace into node (node_id,name,type_id,model_id,parent_id,status,c_time,m_time,s_time) values (0,'tq9001.rangestack.com',0,0,0,'testing',strftime('%s','now'),strftime('%Y-%m-%d %H:%M:%S','now'),strftime('%s','now'));
+insert or replace into dictionary (dict_id,name,description,label,parent_id,order_num) values (0,'vm','Virtual Machine','no-lable',0,0);
+#+END_EXAMPLE
