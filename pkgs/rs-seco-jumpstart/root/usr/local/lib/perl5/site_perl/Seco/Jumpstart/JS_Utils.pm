@@ -70,22 +70,23 @@ sub fqdn {
     sub _dns_read {
         open my $data, "<", "/service/tinydns/root/data"
           or die "Can't open tinydns data: $!";
-        while (<$data>) {
-            if (/^\+([^.]+)\.(inktomisearch|inktomi)\.com:([^:]+):0/) {
-                $hosts_ip{$1} = $3;
-            }
-            elsif (/^\+([^:]+):([^:]+):0/) {
 
-                # FQDN that's not inktomi/inktomisearch
+        while (<$data>) {
+	    ## use fqdn in groups.cf but hostname which in rangestack domain as default!.
+            # if (/^\+([^.]+)\.(rangestack)\.com:([^:]+):0/) {
+            #     $hosts_ip{$1} = $3;
+            # }
+
+            if (/^\+([^:]+):([^:]+):0/) {
+                # FQDN that's not rangestack
                 $hosts_ip{$1} = $2;
             }
             elsif (/^C([^:]+):([^:]+):0/) {
-
                 # CNAME
                 my ($node, $real_name) = ($1, $2);
                 $real_name =~ s/\.$//;
                 $cnames{$node} = $real_name;
-                if ($node =~ /^([^.]+).inktomisearch\.com$/) {
+                if ($node =~ /^([^.]+).rangestack\.com$/) {
                     $cnames{$1} = $real_name;
                 }
             }
@@ -93,11 +94,11 @@ sub fqdn {
         close $data;
     }
 
+
     sub get_ip {
         my ($node) = @_;
         confess "Need a hostname" unless $node;
-	return "211.154.6.7";
-
+	
         _dns_read() unless %hosts_ip;
         $node = $cnames{$node} while exists $cnames{$node};
         return $hosts_ip{$node} if exists $hosts_ip{$node};
