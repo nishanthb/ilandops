@@ -1,0 +1,38 @@
+#+TITLE:     jumpstart.org
+#+AUTHOR:    Ting Yu
+#+EMAIL:     16667737@qq.com
+#+DATE:      2014-10-11 六
+#+DESCRIPTION:
+#+KEYWORDS:
+#+LANGUAGE:  en
+#+OPTIONS:   H:3 num:t toc:t \n:nil @:t ::t |:t ^:t -:t f:t *:t <:t
+#+OPTIONS:   TeX:t LaTeX:t skip:nil d:nil todo:t pri:nil tags:not-in-toc
+#+INFOJS_OPT: view:nil toc:nil ltoc:t mouse:underline buttons:0 path:http://orgmode.org/org-info.js
+#+EXPORT_SELECT_TAGS: export
+#+EXPORT_EXCLUDE_TAGS: noexport
+#+LINK_UP:   
+#+LINK_HOME: 
+#+XSLT:
+
+* JumpStart
+
+  主要目标是完成对 JumpStart 的可用性优化. 最好在6个月内能做完.
+  1. JumpStart 完成对一群服务器的硬件弹性化配置.
+  2. Gemstone 完成上层软件的弹性化配置.
+
+
+** NEXT jumpstart 的目录结构
+
+    "conf/*.cf"                => "/JumpStart/conf/",
+    "out/tftpboot/"            => "/tftpboot/",
+    "files/tftpboot/"          => "/tftpboot/",
+    "files/httpd.conf"         => "/etc/apache/",
+    "files/httpd.include"      => "/JumpStart/",
+    "out/dhcpd/__NODE__"       => "/etc/dhcpd.conf",
+    "skh_tar/"                 => "/JumpStart/ssh-keys/ --delete",
+    "cgi/"                     => "/JumpStart/cgi/",
+    "out/profiles/"            => "/JumpStart/profiles/",
+    "jsbin/"                   => "/JumpStart/bin/",
+    "var/jumpstart.sqlite.dat" => "/JumpStart/var/"
+   
+    基本的目录结构.作为参考.
