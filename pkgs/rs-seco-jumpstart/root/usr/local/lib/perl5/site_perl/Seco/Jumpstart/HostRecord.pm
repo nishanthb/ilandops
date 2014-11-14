@@ -184,7 +184,7 @@ sub save {
 
     unless ($prepared_update) {
         my $update = join(",", map { "$_=?" } @fields_node);
-	print "xxx: $prepared_update $update\n";
+#	print "xxx: $prepared_update | $update\n";
         $prepared_update =
           $dbh->prepare("update HostRecords set $update where node = ?");
         $self->{dirty_} = 0;

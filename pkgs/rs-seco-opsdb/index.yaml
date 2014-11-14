@@ -10,4 +10,12 @@ default:
     - fixcpan-class-dbi-abstractsearch
     - fixcpan-class-dbi-frozen-301
     - fixcpan-dbix-contextualfetch
+    - fixcpan-sql-abstract-limit
     - rs-seco-awesomerange
+    - fixcpan-sql-abstract
+    - fixcpan-class-trigger
+    - fixcpan-class-data-inheritable
+    - fixcpan-ima-dbi
+    - fixcpan-universal-moniker
+    - fixcpan-sql33t
+    - fixcpan-netmask
