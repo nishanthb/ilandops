@@ -8,20 +8,20 @@
       (* optional prefix + digits + optional domain dash same prefix (optional) +
        * digits + same optional domain if there was one, or an optional domain  *)
     let node_regex = regexp
-      "^([-\\w.]*?)(\\d+)(\\.[-A-Za-z\\d.]*[-A-Za-z]+[-A-Za-z\\d.]*)?-\\1?(\\d+)((?(3)\\3|(?:\\.[-A-Za-z\\d.]+)?))$"
+      "^([-\\w.]*?)(\\d+)(\\.[-A-Za-z\\d.]*[-A-Za-z]+[-A-Za-z\\d.]*)?\\.\\.\\1?(\\d+)((?(3)\\3|(?:\\.[-A-Za-z\\d.]+)?))$"
 }
 
 let digit = ['0'-'9']
 let letter = ['a'-'z' 'A'-'Z']
-let hostchar = letter | digit | '_' | '.' (* no dashes *)
-let hostchard = hostchar | '-'
+let hostchar = letter | digit | '_' | '.'   (* no dashes *)
+let hostchard = hostchar | ".." 
 
 rule token = parse
     | [' ' '\t' '\n'] { token lexbuf }
     | '#'? ((letter | '_')+ as name) '(' { FUNCTION (name, (args 1 lexbuf)) }
 
     (* optimization: don't use pcre unless the expression has a '-' *)
-    | (hostchar+ as literal) { LITERAL(literal) } 
+    (* yuting say: I broken the optimization! *)
     | (hostchar hostchard* as range) {
     try
       let res = extract ~full_match:false ~rex:node_regex range in
@@ -29,6 +29,8 @@ rule token = parse
           lst = res.(3) and dom' = res.(4)
       in RANGE(pref, fst, lst, (if dom = "" then dom' else dom))
     with Not_found -> LITERAL(range) }
+    | (hostchar+ as literal) { LITERAL(literal) } 
+
     | ",-" { DIFF }  (* to keep people happy *)
     | ",&" { INTER } (* to keep people happy *)
     | '&' { INTER_HP } (* Higher precedence intersection *)

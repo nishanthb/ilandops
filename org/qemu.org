@@ -5,9 +5,24 @@
 
 ** General Examples
 
-qemu-img
-	
+*** 初始化安装一个centos：
+
+#+BEGIN_SRC sh :dir /sudo::
+sudo qemu-system-x86_64 -boot d \
+	-cdrom /home/yuting/i/iso/CentOS-6.5-x86_64-minimal.iso \
+	-hda /home/yuting/d/disk/tq9001.disk.img  \
+	-net nic -net tap,ifname=tap0,script=no  -m 512 -curses
+#+END_SRC
+
+
+*** 创建一个qcow 格式的文件系统img.
+
+#+BEGIN_EXAMPLE
    qemu-img create -f qcow disk.img 2048M
+#+END_EXAMPLE
+
+*** 启动 tq9001
+
 
 qemu-system-x86_64
 

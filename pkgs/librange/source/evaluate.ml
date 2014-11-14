@@ -618,12 +618,12 @@ let compress_range nodes separator =
   let add_one () =
     groups := !prev_n :: !groups in
 
-  (* add a group (like node1-10) to our list of results *)
+  (* add a group (like node1..10) to our list of results *)
   let add_group () =
     let b = Buffer.create 256 in
       Buffer.add_string b !prev_pre;
       Buffer.add_string b !prev_num;
-      Buffer.add_char b '-';
+      Buffer.add_string b "..";
       Buffer.add_string b (ignore_common_prefix !prev_inum (!prev_inum + !count));
       Buffer.add_string b !prev_suf;
       groups := (Buffer.contents b)::!groups in

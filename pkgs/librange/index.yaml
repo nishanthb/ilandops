@@ -8,6 +8,7 @@ default:
         - ocaml312
         - ocamlfind13
         - pcre7
+        - ocamlpcre62
 
 centos:
   dirtransforms:

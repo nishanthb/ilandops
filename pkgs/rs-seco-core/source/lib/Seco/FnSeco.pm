@@ -668,7 +668,7 @@ sub CompressRange
 	{
 		$ret .= "$first";
 	} else {
-		$ret .= "$first-$next";
+		$ret .= "$first..$next";
 	}
 	return $ret;
 }

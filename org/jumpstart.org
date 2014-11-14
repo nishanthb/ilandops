@@ -21,6 +21,24 @@
   2. Gemstone 完成上层软件的弹性化配置.
 
 
+** Sina提供的测试环境搭建:
+
+*** 基本环境:
+    + 需要在一个网段里. (便于dhcp)
+    + 基本结构.
+
+
+*** TODO Admin 角色包:
+在 tq9001 上基于base os  安装的包.
+    + gcc
+    + make
+    + httpd
+    + dhcpd
+    + multipkg
+
+
+
+
 ** NEXT jumpstart 的目录结构
 
     "conf/*.cf"                => "/JumpStart/conf/",
