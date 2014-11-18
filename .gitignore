@@ -10,3 +10,9 @@ proj/JumpStart2/images
 proj/JumpStart2/logs/make.log
 proj/JumpStart2/out/dhcpd/*
 !proj/JumpStart2/out/dhcpd/.takeposition
+proj/JumpStart2/out/tftpboot/*
+!proj/JumpStart2/out/tftpboot/.takeposition
+!proj/JumpStart2/out/tftpboot/pxelinux.cfg
+!proj/JumpStart2/out/tftpboot/pxelinux.cfg/configs
+proj/JumpStart2/out/profiles/*
+!proj/JumpStart2/out/profiles/.takeposition
