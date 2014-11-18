@@ -9,6 +9,9 @@ default:
         - readline  
         - readline-devel
         - bzip2-devel
+        - expat
+        - expat-devel
+
 x86_64:
  nobuild: 1
  preferarch: i386

@@ -1,8 +1,0 @@
-#+FILETAGS: TRADELOG
-
-* TRADEPLAN (tradeplan) 我的交易计划？ 				  :TRADEPLAN:
-  :LOGBOOK:
-  CLOCK: [2014-10-11 六 23:44]--[2014-10-11 六 23:45] =>  0:01
-  :END:
-[2014-10-11 六 23:44]
-

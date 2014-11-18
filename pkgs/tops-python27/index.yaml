@@ -2,7 +2,6 @@
 default:
   name: tops-python27
   summary: python 2.7 
-  http: http://zhouchang.net/dl/misc/tops-python27-2.7.2.tar.gz
   version: '2.7.2'
   release: 1
 x86_64:
