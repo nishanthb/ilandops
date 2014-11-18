@@ -1,0 +1,67 @@
+#!/usr/local/bin/perl -w
+#
+# returns the next boot value for ag given host
+#
+
+use strict;
+use Seco::Jumpstart::NextBoot;
+use Getopt::Long;
+use Seco::AwesomeRange qw/:all/;
+use Sys::Hostname;
+
+my $range;
+my $nossh;
+GetOptions("range=s" => \$range, "nossh" => \$nossh);
+
+usage() if $range and @ARGV; 
+$range ||= shift();
+
+my %bh_node;
+my @nodes = expand_range($range);
+usage() unless @nodes;
+
+unless ($nossh) {
+    for my $node (@nodes) {
+        my @boothosts = expand_range("bh($node)");
+        push @{$bh_node{$_}}, $node for @boothosts;
+    }
+
+    my $hostname = hostname();
+    for my $boothost (sort keys %bh_node) {
+        if ($boothost ne $hostname) {
+            my $bh_range = compress_range($bh_node{$boothost});
+            System("ssh $boothost /JumpStart/bin/check-boot -n -r $bh_range");
+        } 
+    }
+
+    exit 0 unless $bh_node{$hostname};
+    $range = compress_range($bh_node{$hostname});
+}
+
+for my $node (sorted_expand_range($range)) {
+    my ($boot, $timestamp, $user) = Seco::Jumpstart::NextBoot->get($node);
+    if (defined $boot) {
+        my $date = $timestamp ? localtime($timestamp) : "<unknown-date>";
+        $user ||= "<unknown";
+        $date =~ s/ /-/g;
+        print "$node $boot $date $user\n";
+    } else {
+        print "$node unknown\n";
+    }
+}
+
+sub usage {
+    print "Usage: $0 [-n] <hostname>\n";
+    print "  returns the next boot setting of <hostname>\n";
+    print "  if -n [--nossh] is specified we don't ssh to the other boothosts\n";
+    exit 1;
+}
+
+sub System {
+    my $cmd = shift;
+    print "% $cmd\n" if -t STDIN && -t STDOUT;
+    system($cmd);
+    if ($? != 0) {
+        print "WARNING: '$cmd' failed\n";
+    }
+}

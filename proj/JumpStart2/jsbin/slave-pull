@@ -1,0 +1,51 @@
+#!/usr/local/bin/zsh
+
+emulate -L zsh
+path=(~seco/tools/bin ~seco/candy/bin /bin /sbin /usr/bin /usr/sbin /usr/local/bin)
+alias rsync='/usr/bin/rsync -a -l -L '
+
+function rsyncf {
+    local arg
+    local msg
+    local rsyncerr
+
+    arg=$1; shift;
+    msg=$1; shift;
+    print -n "  $msg... "
+    rsync $arg $*
+    rsyncerr=$?
+
+    (( $rsyncerr == 0 )) && print OK || print FAILED
+    return $rsyncerr
+}
+
+function rsyncmsg {
+    rsyncf "" $*
+}
+
+function rsyncdel {
+    rsyncf --delete $*
+}
+
+HOSTNAME=`uname -n`
+
+cd /JumpStart
+mkdir -p /JumpStart/boot/incoming
+chown -R www-data /JumpStart/boot/incoming
+rsyncmsg "Generated tftpboot files" docking::jumpstart/out/tftpboot/ /tftpboot/
+rsyncmsg "Static tftpboot files" docking::jumpstart/files/tftpboot/ /tftpboot/
+rsyncdel "SSH keys" docking::jumpstart/skh_tar/ ssh-keys
+#rsyncdel "External packages" docking::jumpstart/files/packages/external/ packages-v3-ext
+#rsyncdel "Inkt packages" docking::jumpstart/files/packages/inkt/ packages-v3
+#rsyncdel "APT-RPM repository" docking::jumpstart/files/packages/apt-rpm/ apt-rpm
+rsyncdel "CGIs" docking::jumpstart/cgi/ cgi
+rsyncdel "Profiles" docking::jumpstart/out/profiles/ profiles
+rsyncmsg "HTTPD config" docking::jumpstart/files/httpd.conf /etc/apache/
+rsyncmsg "HTTPD js include" docking::jumpstart/files/httpd.include /JumpStart/
+rsyncmsg "dhcpd.conf" docking::jumpstart/out/dhcpd/$HOSTNAME /etc/dhcpd.conf
+rsyncdel "Scripts" docking::jumpstart/jsbin/ bin
+rsyncmsg "Database" docking::jumpstart/var/ var
+chown -R www-data var /tftpboot/pxelinux.cfg
+
+svc -t /service/dhcpd
+/etc/init.d/apache reload>/dev/null

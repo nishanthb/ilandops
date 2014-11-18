@@ -1,0 +1,92 @@
+#!/usr/bin/perl -w
+#
+
+use YAML;
+use Seco::Jumpstart::NextBoot;
+use Seco::Jumpstart::HostRecord;
+use Seco::Jumpstart::Overrides;
+use Seco::AwesomeRange qw/sorted_expand_range/;
+use Getopt::Long;
+
+my $help; my $range;
+GetOptions("help" => \$help, 
+    "range=s" => \$range) or die usage(1);
+
+if ($help) {
+    usage(0);
+}
+
+my @hosts;
+if ($range) {
+    @hosts = sorted_expand_range($range);
+} else {
+    @hosts = @ARGV;
+}
+
+unless (@hosts) {
+    usage(1);
+}
+
+dump_info_for_host($_) for @hosts;
+exit(0);
+
+sub dump_info_for_host {
+    my $name = shift;
+    print "\n$name\n";
+    for ($name) {
+        s/.inktomisearch.com$//;
+        s/.yst.corp.yahoo.com$//;
+        s/.inktomi.com$//;
+    }
+
+    my $hr = Seco::Jumpstart::HostRecord->get($name);
+
+    unless ($hr->admin) {
+        print "WARNING: $name will not be able to jumpstart. Admin is undef\n";
+    }
+
+    my $cfg_hr = Load($hr->yaml_hostrecord(Seco::Jumpstart::NextBoot->get($name)));
+    $cfg_hr->{admin} = $hr->admin;
+
+    my $prof_hr = parse_profile($cfg_hr->{'profile'});
+    my $serial_port = Seco::Jumpstart::Overrides->get($name, "serial-port");
+    if (defined $serial_port) {
+        $prof_hr->{'serial_port'} = $serial_port;
+    }
+
+    my $cfg = flatten($cfg_hr, $prof_hr);
+    print Dump($cfg);
+    print "\n";
+}
+
+sub parse_profile {
+    my $profile = shift;
+    my $file = "/JumpStart/profiles/$profile.yaml";
+
+    unless (-r $file) {
+	print "$profile: does not exist\n";
+	return;
+    }
+
+    my $res = YAML::LoadFile($file);
+    if ($res->{disk_image} =~ /\Arhel/s) {
+        delete $res->{lilo_config};
+    }
+    return $res;
+}
+
+sub flatten {
+    my ($hr1, $hr2) = @_;
+
+    my %h = (%$hr1, %$hr2);
+    return \%h;
+}
+
+sub usage {
+    my $err = shift;
+    print <<EOT;
+Usage: $0 -r hosts | $0 host(s) 
+EOT
+    exit($err);
+}
+

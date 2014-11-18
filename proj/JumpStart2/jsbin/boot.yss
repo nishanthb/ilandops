@@ -1,0 +1,350 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings 'all';
+use Getopt::Long;
+use Sys::Hostname;
+use Seco::AwesomeRange qw/:all/;
+use Socket;    # for inet_aton
+use Seco::Jumpstart::HostRecord;
+use Seco::Jumpstart::NextBoot;
+use Seco::Jumpstart::FirstBoot;
+use Seco::Jumpstart::Overrides;
+use Seco::Jumpstart::JS_Utils qw/read_file write_file/;
+
+sub WWWUSER () {
+    -f "/etc/redhat-release" ? "apache" : "www-data";
+}
+my $uid_www = (getpwnam(WWWUSER))[2];
+
+my (
+    $range, $cluster,   $exclude, $mode,
+    $nossh, $force,     $quiet,   $help,
+    $user,  $firstjump, $ignoreprevious
+);
+
+die "This application needs root (or www-data).\n"
+  if $> and $> != $uid_www;
+
+my $args = join(" ", @ARGV);    # for logging it later
+GetOptions(
+    "range=s"        => \$range,
+    "cluster=s"      => \$cluster,
+    "xclude=s"       => \$exclude,
+    "mode=s"         => \$mode,
+    "f|force"        => \$force,
+    "user=s"         => \$user,
+    "quiet"          => \$quiet,
+    "nossh"          => \$nossh,
+    "firstjump"      => \$firstjump,
+    "ignoreprevious" => \$ignoreprevious,
+    "help"           => \$help
+) or usage(1);
+usage(0) if $help;
+
+my @nodes = nodes_parser($cluster, $range, $exclude);
+die "Need some nodes to operate on.\n"                        unless @nodes;
+die "What should I do? Use -m=i|n|e|<something> - See usage." unless $mode;
+unless ($user) {
+    $user = $ENV{SUDO_USER} || $ENV{USER} || $ENV{LOGNAME} || `whoami`;
+    chomp($user);
+    $args .= " -u $user";
+}
+
+# Validate
+my $hostname = hostname();
+
+my %admins;
+
+my %nodes;
+my %no_gemstone;
+for my $node (@nodes) {
+    $nodes{$node} = Seco::Jumpstart::HostRecord->get($node);
+    my $admin_nodes = $nodes{$node}->admin;
+    if ($admin_nodes) {
+        my @a = expand_range($admin_nodes);
+        for my $admin (@a) {
+            push @{ $admins{$admin} }, $node;
+        }
+    }
+    else {
+        $no_gemstone{$node}++;
+    }
+}
+
+if (%no_gemstone) {
+    my @broken_nodes = keys %no_gemstone;
+    my (%no_ip, %no_hr, %rest);
+    for my $node (@broken_nodes) {
+        my $ip = $nodes{$node}->ip;
+        if (not defined($ip)) {
+            $no_hr{$node}++;
+        }
+        elsif ($ip eq "0.0.0.0") {
+            $no_ip{$node}++;
+        }
+        else {
+            $rest{$node}++;
+        }
+    }
+    my $no_hr = compress_range(keys %no_hr);
+    my $no_ip = compress_range(keys %no_ip);
+    my $rest  = compress_range(keys %rest);
+    if ($no_hr) {
+        warn
+"MISSING CONFIG: $no_hr\nThe jumpstart config for these nodes is unknown.\nPlease verify jumpstart/conf/groups.cf, and re-run bin/make.\n\n";
+    }
+    if ($no_ip) {
+        warn
+"DNS NOT DONE: $no_ip\nPlease update the DNS records, and re-run jumpstart/bin/make.\n\n";
+    }
+    if ($rest) {
+        warn
+"NO BOOTHOST FOR: $rest\nCould not determine the right boothost for these nodes.\n";
+    }
+}
+
+# verify reverse dns
+
+my $errors   = 0;
+my $cmd_line = "--mode=$mode";
+$cmd_line .= " -f"               if $force;
+$cmd_line .= " --firstjump"      if $firstjump;
+$cmd_line .= " --ignoreprevious" if $ignoreprevious;
+
+unless ($nossh) {
+    chdir("/usr/local/jumpstart");
+    my @slaves;    # hosts that need slaving
+    my $jumproot = am_i_jumproot();
+
+    for my $admin (sort keys %admins) {
+        next if $admin eq $hostname;
+
+        if ($jumproot) {    # if i'm a root js server
+            if ((!-e "state/$admin") || (-M "state/$admin" > -M "state/make")) {
+                push @slaves, $admin;
+            }
+        }
+    }
+    if (@slaves) {
+        my $cmd =
+            "mcmd -t -1 -g -1 -p -m " . @slaves . " -r "
+          . join(",", @slaves)
+          . " 'bin/slave -q HOSTNAME && touch state/HOSTNAME'";
+        print "% $cmd\n" unless $quiet;
+        system("$cmd");
+    }
+
+    for my $admin (sort keys %admins) {
+        my @nodes = @{ $admins{$admin} };
+        my $nodes = compress_range(\@nodes);
+
+        my @cmd;
+        if ($admin ne $hostname) {
+            push @cmd, "ssh";
+            push @cmd, $admin;
+        }
+        push @cmd, "/JumpStart/bin/boot";
+        push @cmd, "-r";
+        push @cmd, "'$nodes'"; # shitty quoting, fixme
+        push @cmd, split(/\s+/, $cmd_line);
+        push @cmd, qw/ -q -n /;
+        print "Executing: @cmd\n" unless $quiet;
+        system(@cmd);
+        if ($? ne 0) {
+            print "ERROR: $! while executing\n\t@cmd\n";
+            $errors++;
+        }
+    }
+}
+
+exit 0 unless $admins{$hostname};
+
+unlink "/tftpboot/pxelinux.cfg/default";
+@nodes = @{ $admins{$hostname} };
+my $nodes = compress_range(\@nodes);
+print "Executing: $0 -r $nodes $cmd_line\n"
+  unless $quiet;
+
+my ($type, $emergency);
+for ($mode) {
+    /^i(?:nstall)?$/ && do {
+        $type = $force ? "force-install" : "install";
+        last;
+    };
+    /^b(?:urnin)?$/ && do {
+        unless ($force) {
+            die
+              "Refusing to do burnin test because -force was not specified.\n";
+        }
+        $type = "burnin";
+        last;
+    };
+    /^g(?:uess)?$/ && do {
+        $type = $force ? "force-guessinstall" : "guessinstall";
+        last;
+    };
+    /^n(?:ormal)?$/    && do { $type = "normal";       last };
+    /^r(?:oot)?$/      && do { $type = "root-install"; last };
+    /^e(?:mergency)?$/ && do { $type = "emergency";    last };
+
+    validate($_) or die "ERROR: Invalid mode: $_\n";
+    $type = $_;
+}
+
+# verify that these nodes have not been previously jumped
+if ($firstjump and not $ignoreprevious) {
+    my %jumped;
+    for my $node (@nodes) {
+        my ($fb, $fb_time, $fb_user) = Seco::Jumpstart::FirstBoot->get($node);
+        if ($fb and $fb ne "first") {
+
+            # already jumped
+            $jumped{$node}++;
+        }
+    }
+    if (%jumped) {
+        print <<ERR;
+ERROR: Node(s) have already been jumped.
+use --ignoreprevious if you know what you are doing.
+ERR
+        exit 1;
+    }
+}
+
+for my $node (@nodes) {
+    Seco::Jumpstart::NextBoot->set($node, $type, $user);
+    Seco::Jumpstart::FirstBoot->set($node, "first", $user) if $firstjump;
+    setpxe($node, $nodes{$node}->{ip}, $nodes{$node}->nextboot_name($type));
+    my $ip       = $nodes{$node}->{ip};
+    my $fbsd_dir = "/home/is/export/broom/home/FreeBSD/clone/ip2version";
+    if ($node =~ /^(?:web|mon)\d/ and -d $fbsd_dir) {
+        my $ip = $nodes{$node}->{ip};
+        write_file("$fbsd_dir/$ip", "4\n");
+        if ($type =~ /install/) {
+            system("ln -sfn /tftpboot/pxeboot /tftpboot/pxeboot-$ip");
+        }
+        else {
+            system("ln -sfn /DISKBOOT /tftpboot/pxeboot-$ip");
+        }
+    }
+}
+log_it("boot", $args);
+exit(0);
+
+sub log_it {
+    my ($prog, $args) = @_;
+
+    my @localtime = localtime();
+    my $date      = sprintf("%d%02d%02d",
+        $localtime[5] + 1900,
+        $localtime[4] + 1,
+        $localtime[3]);
+    my $time = sprintf("%02d%02d", @localtime[ 2, 1 ]);
+    open my $log_fh, ">>/JumpStart/logs/boot/$date.log"
+      or die "ERROR: can't write log: /JumpStart/logs/boot/$date.log\n";
+    print $log_fh "$date:$time boot $args\n";
+    close $log_fh;
+    system("chown " . WWWUSER . " /JumpStart/logs/boot/$date.log")
+      if $< == 0;
+}
+
+sub validate {
+    my $mode = shift;
+
+    my $default = read_file("/tftpboot/pxelinux.cfg/configs");
+    my @labels  = ($default =~ /^LABEL\s+(\S+)/mg);
+    my %labels  = map { $_ => 1 } @labels;
+    if (not exists $labels{$mode}) {
+        print "mode=$mode, is not valid boot label.\nValid boot labels are: ",
+          join(",", sort @labels), "\n";
+        return 0;
+    }
+
+    return 1;
+}
+
+sub setpxe {
+    local $/ = "";
+    my ($node, $ip, $nextboot) = @_;
+    unless (defined $ip) {
+        print "WARNING: Got undefined IP for node $node\n";
+    }
+    my $default  = "/tftpboot/pxelinux.cfg/configs";
+    my $IPHEX    = sprintf("%08X", unpack("N", inet_aton($ip)));
+    my $filename = "/tftpboot/pxelinux.cfg/$IPHEX";
+
+    # If we have an override for the serial port...
+    my $serial_port = Seco::Jumpstart::Overrides->get($node, "serial-port");
+    my $root_device = Seco::Jumpstart::Overrides->get($node, "root-device");
+    my $default_fs  = Seco::Jumpstart::Overrides->get($node, "default-fs");
+    $root_device = undef unless $type eq "normal";
+
+    open my $default_fh, "<$default"  or die "ERROR: Can't open $default: $!";
+    open my $pxe_fh,     ">$filename" or die "ERROR: Can't open $filename: $!";
+    print $pxe_fh "DEFAULT $nextboot\n";
+    while (<$default_fh>) {
+        s/^\s+//;
+        s/\s+$//;
+        s/ttyS\d+/ttyS$serial_port/g   if defined($serial_port);
+        s/root=\S+/root=$root_device/g if defined($root_device);
+        s/fs=\S+/fs=$default_fs/g      if defined($default_fs);
+
+        unless (/^LABEL \s+ ([-\w]+)/x) {
+            next if /^DEFAULT/;
+            print $pxe_fh "$_\n\n";
+            next;
+        }
+        my $thislabel = $1;
+        if ($thislabel eq $nextboot) {
+            s/ hostname=(\S+)/ hostname=$node/;
+            print $pxe_fh "$_\n\n";
+        }
+    }
+    close $default_fh;
+    print $pxe_fh "# Host: $node\n";
+    close $pxe_fh;
+
+    my ($uid, $gid);
+    (undef, undef, $uid, $gid) = getpwnam(WWWUSER)
+      or die("ERROR: " . WWWUSER . " does not exist?");
+    chmod 0644, $filename;
+    chown $uid, $gid, $filename;
+}
+
+sub am_i_jumproot {
+    my @root = expand_range('@JUMPROOT');
+    my %root;
+    @root{@root} = undef;
+    return exists $root{$hostname};
+}
+
+sub usage {
+    my $error_code = shift;
+    print <<EOT;
+$0 [options]
+
+Options
+    -h|--help              Help (print this)
+    -r|--range=<range>     Operate on this range
+    -x|--xclude=<range>    Excluding these nodes
+    -c|--cluster=<cluster> Operate on this cluster
+    -f|--force             When jumpstarting always mkfs the file systems
+    -m|--mode=<mode>       i  = install
+			   r  = root install (only replace)
+			   n  = normal netboot
+			   e  = emergency single user mode
+			   b  = burnin as JBODS (requires -f, lossy)
+			   g  = guess the right hardware profile
+     --firstjump           For buildouts - no timeouts here
+     --ignoreprevious      if you need to force a firstjump
+
+Samples:
+   $0 -m i -f     # Force wipe/install
+   $0 -m r        # Be paranoid, hurt nothing but totally replace 1 gig /
+   $0 -m b -f     # Fry the raid config; run dd against each drive as JBOD
+
+
+EOT
+    exit $error_code;
+}
