@@ -69,7 +69,7 @@ my $user = $ENV{SUDO_USER} || $ENV{USER} || $ENV{LOGNAME} || `whoami`;
 # Please log in to $hostname as your normal user and then use sudo.
 
 # If you did log in as a normal user and are still seeing this message
-# please page dmuino-pager\@inktomi.com
+# please page tingle2008@gmail.com
 
 # EOT
 #     exit 1;

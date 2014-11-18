@@ -45,7 +45,7 @@ sub fully_qualify {
     if ($host =~ /\.[a-z]{2,3}$/i) {
         return $host;
     } else {
-        return "$host.inktomisearch.com";
+        return "$host.rangestack.com";
     }
 }
 
@@ -67,7 +67,7 @@ sub short_name {
         (.*) # short name
         \.
         (?:
-            inktomisearch  |
+            rangestack  |
             (?:
                 yst\.corp | # some yahoo domains
                 crawl )
@@ -83,7 +83,7 @@ my %missing_keys;
 sub get_all_names {
     my $name = shift;
     if (not exists $host_aliases{$name}) {
-        $name =~ s/inktomisearch/inktomi/;
+        $name =~ s/rangestack/inktomi/;
         if (not exists $host_aliases{$name}) {
             return;
         }

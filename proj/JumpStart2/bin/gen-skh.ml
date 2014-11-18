@@ -15,10 +15,10 @@ let uniq sorted_list =
       | [] -> raise (Failure "uniq")
       | hd :: tl -> List.rev (uniq_prev hd [] tl)
 
-(* gets a list with aliases and if some of them have .inktomisearch.com
+(* gets a list with aliases and if some of them have .rangestack.com
    it adds to the result the short version of those names *)
 let plus_short_names lst =
-  let inkt_re = Pcre.regexp "^(.*)\\.inktomisearch\\.com$" in
+  let inkt_re = Pcre.regexp "^(.*)\\.rangestack\\.com$" in
   let rec add_to_lst acc = function
       [] -> acc
     | hd :: tl ->
@@ -39,11 +39,11 @@ let ends_with substr str =
       let rightstr = String.sub str (l2 - l1) l1 in
 	rightstr = substr
 
-(* add .inktomisearch.com to the hostname except for hosts that
+(* add .rangestack.com to the hostname except for hosts that
    are already fqdn *)
 let fully_qualify host =
   if ends_with ".com" host then host
-  else host ^ ".inktomisearch.com"
+  else host ^ ".rangestack.com"
 
 (* Fast read file using low level Unix calls *)
 let read_file path =
@@ -85,7 +85,7 @@ let gen_ssh_keys range prefix_len =
   let ip_host = Hashtbl.create 23433 in
   let a_rec_re = Pcre.regexp "^\\+([^:]+):([^:]+):0" in
   let cname_rec_re = Pcre.regexp "^C([^:]+):([^:]+)\\.:0" in
-  let domain_re = Pcre.regexp "^(.*)\\.(?:inktomisearch|yst\\.corp\\.yahoo)\\.com$" in
+  let domain_re = Pcre.regexp "^(.*)\\.(?:rangestack|yst\\.corp\\.yahoo)\\.com$" in
 
   (* the current output filename prefix *)
   let cur_prefix = ref "" in

@@ -45,7 +45,7 @@ sub fully_qualify {
     if ($host =~ /\.com$/) {
         return $host;
     } else {
-        return "$host.inktomisearch.com";
+        return "$host.rangestack.com";
     }
 }
 
@@ -63,7 +63,7 @@ my $sel_sth = $dbh->prepare($sel);
 sub short_name {
     my $fqdn = shift;
     return unless $fqdn;
-    if ($fqdn =~ /^(.*)\.(?:inktomisearch|yst\.corp\.yahoo)\.com$/) {
+    if ($fqdn =~ /^(.*)\.(?:rangestack|yst\.corp\.yahoo)\.com$/) {
         return $1;
     }
 
@@ -74,7 +74,7 @@ my %missing_keys;
 sub get_all_names {
     my $name = shift;
     if (not exists $host_aliases{$name}) {
-        $name =~ s/inktomisearch/inktomi/;
+        $name =~ s/rangestack/inktomi/;
         if (not exists $host_aliases{$name}) {
             return;
         }

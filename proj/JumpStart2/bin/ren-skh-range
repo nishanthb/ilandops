@@ -61,9 +61,9 @@ while (@from) {
     }
     for ( $rsa, $dsa ) {
         s/\Q$f\E/$t/;
-        s/.yahoo.com.inktomisearch.com/.yahoo.com/;
-        s/.inktomisearch.com.yahoo.com/.inktomisearch.com/;
-        s/.crawl.yahoo.net.inktomisearch.com/.crawl.yahoo.net/;
+        s/.yahoo.com.rangestack.com/.yahoo.com/;
+        s/.rangestack.com.yahoo.com/.rangestack.com/;
+        s/.crawl.yahoo.net.rangestack.com/.crawl.yahoo.net/;
     }
     update_keys( $f, $t, $rsa, $dsa );
     update_static( $f, $t );
