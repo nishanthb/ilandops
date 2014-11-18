@@ -17,6 +17,6 @@ proj/JumpStart2/out/tftpboot/*
 proj/JumpStart2/out/profiles/*
 !proj/JumpStart2/out/profiles/.takeposition
 
-proj/JumpStart2/states/*
+proj/JumpStart2/state/*
 !proj/JumpStart2/states/.takeposition
 
