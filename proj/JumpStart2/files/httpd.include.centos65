@@ -1,0 +1,85 @@
+UseCanonicalName off
+<Directory />
+    Options FollowSymLinks
+    AllowOverride None
+</Directory>
+
+<Directory /JumpStart/cgi>
+
+Options Indexes FollowSymLinks ExecCGI
+AddHandler cgi-script .cgi
+AllowOverride None
+order allow,deny
+allow from all
+
+</Directory>
+
+<Directory /tftpboot>
+Options Indexes FollowSymLinks ExecCGI
+AllowOverride None
+order allow,deny
+allow from all
+</Directory>
+
+
+<Directory /var/www/login>
+Options Indexes FollowSymLinks ExecCGI
+AddHandler cgi-script .cgi
+AllowOverride None
+order allow,deny
+allow from all
+</Directory>
+
+Alias /jumpstart/ /JumpStart/cgi/
+Alias /tftpboot/ /tftpboot/
+
+Alias /packages-v3/main/ /export/crawlspace/apt/inkt/
+Alias /packages-v3/ /export/crawlspace/apt/inkt/
+Alias /packages-v3-ext/main/ /export/crawlspace/apt/external/
+Alias /packages-v3-ext/ /export/crawlspace/apt/external/
+
+Alias /packages/main/ /JumpStart/packages/
+Alias /packages/ /JumpStart/packages/
+Alias /packages-ext/main/ /JumpStart/packages-ext/
+Alias /packages-ext/ /JumpStart/packages-ext/
+
+Alias /apt-rpm/ /export/crawlspace/apt/apt-rpm/
+Alias /yum/ /export/crawlspace/yum/
+Alias /pgyum/ /export/crawlspace/pgyum/
+
+# /usr/lib/cgi-bin should be changed to whatever your ScriptAliased
+# CGI directory exists, if you have that configured.
+
+<Directory /usr/lib/cgi-bin>
+AllowOverride None
+Options ExecCGI FollowSymLinks
+</Directory>
+
+
+<Directory /usr/doc>
+Options Indexes FollowSymLinks
+AllowOverride None
+order deny,allow
+deny from all
+allow from localhost
+</Directory>
+
+
+<DirectoryMatch ^/home/.*/public_html>
+Options Indexes SymLinksIfOwnerMatch
+AllowOverride None
+</DirectoryMatch>
+
+<Directory /export/crawlspace/yum>
+    Options Indexes FollowSymLinks
+</Directory>
+
+<Directory /export/crawlspace/pgyum>
+    Options Indexes FollowSymLinks
+</Directory>
+
+<Directory /JumpStart/yum>
+    Options Indexes FollowSymLinks
+</Directory>
+
+

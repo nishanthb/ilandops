@@ -1,0 +1,327 @@
+subnet 172.16.0.0 netmask 255.255.0.0 {
+    option broadcast-address 172.16.255.255;
+    server-name "noname.inktomisearch.com";
+    option routers 172.16.1.1;
+    filename "pxelinux.bin";
+    range 172.16.1.10 172.16.1.250;
+    range 172.16.2.10 172.16.2.250;
+}
+
+subnet 10.128.31.0 netmask 255.255.255.0 {
+    option broadcast-address 10.128.31.255;
+    server-name "noname.inktomisearch.com";
+    option routers 10.128.31.1;
+    filename "pxelinux.bin";
+    range 10.128.31.10 10.128.31.250;
+}
+
+host jf99040-console {
+    hardware ethernet 00:20:4a:86:f5:3f;
+    server-name "jf99040-console.inktomisearch.com"; 
+    fixed-address 72.30.16.187;
+    option routers 72.30.16.129;
+    option subnet-mask 255.255.255.192;
+    option broadcast-address 72.30.16.191;
+    filename "pxelinux.bin";
+}
+
+host fs333000-console {
+    hardware ethernet 00:20:4A:87:04:E4;
+    server-name "fs333000-console.inktomisearch.com";
+    fixed-address 10.128.31.11;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+
+host fs333001-console {
+    hardware ethernet 00:20:4A:87:0A:C7;
+    server-name "fs333001-console.inktomisearch.com";
+    fixed-address 10.128.31.12;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+
+host fs333002-console {
+    hardware ethernet 00:20:4A:86:FE:34;
+    server-name "fs333002-console.inktomisearch.com";
+    fixed-address 10.128.31.13;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+
+host fs333003-console {
+    hardware ethernet 00:20:4A:87:06:1A;
+    server-name "fs333003-console.inktomisearch.com";
+    fixed-address 10.128.31.14;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+
+host fs333004-console {
+    hardware ethernet 00:20:4A:87:07:5B;
+    server-name "fs333004-console.inktomisearch.com";
+    fixed-address 10.128.31.15;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+
+host fs333005-console {
+    hardware ethernet 00:20:4A:87:0A:BE;
+    server-name "fs333005-console.inktomisearch.com";
+    fixed-address 10.128.31.16;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+
+host fs333006-console {
+    hardware ethernet 00:20:4A:86:F6:30;
+    server-name "fs333006-console.inktomisearch.com";
+    fixed-address 10.128.31.17;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+
+host fs333007-console {
+    hardware ethernet 00:20:4A:86:06:8A;
+    server-name "fs333007-console.inktomisearch.com";
+    fixed-address 10.128.31.18;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+
+host fs333008-console {
+    hardware ethernet 00:20:4A:87:08:00;
+    server-name "fs333008-console.inktomisearch.com";
+    fixed-address 10.128.31.19;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+
+host fs333009-console {
+    hardware ethernet 00:20:4A:87:0B:26;
+    server-name "fs333009-console.inktomisearch.com";
+    fixed-address 10.128.31.20;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+
+host fs333010-console {
+    hardware ethernet 00:20:4A:86:F8:DB;
+    server-name "fs333010-console.inktomisearch.com";
+    fixed-address 10.128.31.21;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+
+host fs333011-console {
+    hardware ethernet 00:20:4A:87:06:13;
+    server-name "fs333011-console.inktomisearch.com";
+    fixed-address 10.128.31.22;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+
+host fs333012-console {
+    hardware ethernet 00:20:4A:87:07:77;
+    server-name "fs333012-console.inktomisearch.com";
+    fixed-address 10.128.31.23;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+
+host fs333013-console {
+    hardware ethernet 00:20:4A:87:06:EC;
+    server-name "fs333013-console.inktomisearch.com";
+    fixed-address 10.128.31.24;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+
+host fs333014-console {
+    hardware ethernet 00:20:4A:87:0B:A6;
+    server-name "fs333014-console.inktomisearch.com";
+    fixed-address 10.128.31.25;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+
+host fs333015-console {
+    hardware ethernet 00:20:4A:86:F5:11;
+    server-name "fs333015-console.inktomisearch.com";
+    fixed-address 10.128.31.26;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+
+host fs333016-console {
+    hardware ethernet 00:20:4A:87:08:7A;
+    server-name "fs333016-console.inktomisearch.com";
+    fixed-address 10.128.31.27;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+
+host fs333017-console {
+    hardware ethernet 00:20:4A:87:00:48;
+    server-name "fs333017-console.inktomisearch.com";
+    fixed-address 10.128.31.28;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+
+host fs333018-console {
+    hardware ethernet 00:20:4A:87:0A:8B;
+    server-name "fs333018-console.inktomisearch.com";
+    fixed-address 10.128.31.29;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+
+host fs333019-console {
+    hardware ethernet 00:20:4A:86:F5:1D;
+    server-name "fs333019-console.inktomisearch.com";
+    fixed-address 10.128.31.30;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+
+host fs333020-console {
+    hardware ethernet 00:20:4A:87:05:30;
+    server-name "fs333020-console.inktomisearch.com";
+    fixed-address 10.128.31.31;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+
+host fs333021-console {
+    hardware ethernet 00:20:4A:86:F8:B5;
+    server-name "fs333021-console.inktomisearch.com";
+    fixed-address 10.128.31.32;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+
+host fs333022-console {
+    hardware ethernet 00:20:4A:87:08:0E;
+    server-name "fs333022-console.inktomisearch.com";
+    fixed-address 10.128.31.33;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+
+host fs333023-console {
+    hardware ethernet 00:20:4A:86:F8:BA;
+    server-name "fs333023-console.inktomisearch.com";
+    fixed-address 10.128.31.34;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+
+host fs333024-console {
+    hardware ethernet 00:20:4A:87:0A:50;
+    server-name "fs333024-console.inktomisearch.com";
+    fixed-address 10.128.31.35;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+
+host fs333025-console {
+    hardware ethernet 00:20:4A:87:05:B1;
+    server-name "fs333025-console.inktomisearch.com";
+    fixed-address 10.128.31.36;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+
+host fs333026-console {
+    hardware ethernet 00:20:4A:87:05:AA;
+    server-name "fs333026-console.inktomisearch.com";
+    fixed-address 10.128.31.37;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+
+host fs333027-console {
+    hardware ethernet 00:20:4A:86:F5:3F;
+    server-name "fs333027-console.inktomisearch.com";
+    fixed-address 10.128.31.38;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+
+host fs333028-console {
+    hardware ethernet 00:20:4A:87:0B:74;
+    server-name "fs333028-console.inktomisearch.com";
+    fixed-address 10.128.31.39;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+
+host fs333029-console {
+    hardware ethernet 00:20:4A:87:08:8D;
+    server-name "fs333029-console.inktomisearch.com";
+    fixed-address 10.128.31.40;
+    option routers 10.128.31.1;
+    option subnet-mask 255.255.255.0;
+    option broadcast-address 10.128.31.255;
+    filename "pxelinux.bin";
+}
+

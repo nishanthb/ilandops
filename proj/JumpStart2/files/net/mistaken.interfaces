@@ -1,0 +1,19 @@
+# The loopback interface
+auto lo
+iface lo inet loopback
+
+auto eth0
+iface eth0 inet static
+    address 206.190.56.5
+    netmask 255.255.254.0
+    network 206.190.56.0
+    broadcast 206.190.57.255
+    gateway 206.190.56.1
+
+auto eth1
+iface eth1 inet static
+    address 10.190.56.5
+    netmask 255.0.0.0
+    network 10.0.0.0
+    broadcast 10.255.255.255
+

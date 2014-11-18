@@ -1,0 +1,4 @@
+#!/bin/sh -e
+
+genbasedir --bz2only /usr/local/jumpstart/files/packages/apt-rpm
+exit $?

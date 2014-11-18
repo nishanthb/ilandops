@@ -1,0 +1,9 @@
+subnet 172.16.0.0 netmask 255.255.0.0 {
+    option broadcast-address 172.16.255.255;
+    server-name "noname.inktomisearch.com";
+    option routers 172.16.1.1;
+    filename "pxelinux.bin";
+    range 172.16.1.10 172.16.1.250;
+    range 172.16.2.10 172.16.2.250;
+}
+

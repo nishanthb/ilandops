@@ -1,0 +1,133 @@
+UseCanonicalName off
+<Directory />
+    Options FollowSymLinks
+    AllowOverride None
+</Directory>
+
+<Directory /JumpStart/cgi>
+
+# This may also be "None", "All", or any combination of "Indexes",
+# "Includes", "FollowSymLinks", "ExecCGI", or "MultiViews".
+
+# Note that "MultiViews" must be named *explicitly* --- "Options All"
+# doesn't give it to you (or at least, not yet).
+
+Options Indexes FollowSymLinks ExecCGI
+AddHandler cgi-script .cgi
+
+# This controls which options the .htaccess files in directories can
+# override. Can also be "All", or any combination of "Options", "FileInfo", 
+# "AuthConfig", and "Limit"
+
+AllowOverride None
+
+# Controls who can get stuff from this server.
+
+order allow,deny
+allow from all
+
+</Directory>
+
+<Directory /var/www/login>
+Options Indexes FollowSymLinks ExecCGI
+AddHandler cgi-script .cgi
+AllowOverride None
+order allow,deny
+allow from all
+</Directory>
+
+Alias /jumpstart/ /JumpStart/cgi/
+Alias /tftpboot/ /tftpboot/
+
+Alias /packages-v3/main/ /export/crawlspace/apt/inkt/
+Alias /packages-v3/ /export/crawlspace/apt/inkt/
+Alias /packages-v3-ext/main/ /export/crawlspace/apt/external/
+Alias /packages-v3-ext/ /export/crawlspace/apt/external/
+
+Alias /packages/main/ /JumpStart/packages/
+Alias /packages/ /JumpStart/packages/
+Alias /packages-ext/main/ /JumpStart/packages-ext/
+Alias /packages-ext/ /JumpStart/packages-ext/
+
+Alias /apt-rpm/ /export/crawlspace/apt/apt-rpm/
+Alias /yum/ /export/crawlspace/yum/
+Alias /pgyum/ /export/crawlspace/pgyum/
+
+# /usr/lib/cgi-bin should be changed to whatever your ScriptAliased
+# CGI directory exists, if you have that configured.
+
+<Directory /usr/lib/cgi-bin>
+AllowOverride None
+Options ExecCGI FollowSymLinks
+</Directory>
+
+# Allow server status reports, with the URL of http://servername/server-status
+# Change the ".your_domain.com" to match your domain to enable.
+
+#<Location /server-status>
+#SetHandler server-status
+
+#order deny,allow
+#deny from all
+#allow from .your_domain.com
+#</Location>
+
+# Allow server info reports, with the URL of http://servername/server-info
+# Change the ".your_domain.com" to match your domain to enable.
+
+#<Location /server-info>
+#SetHandler server-info
+
+#order deny,allow
+#deny from all
+#allow from .your_domain.com
+#</Location>
+
+# Debian Policy assumes /usr/doc is "/doc/", at least from the localhost.
+
+<Directory /usr/doc>
+Options Indexes FollowSymLinks
+AllowOverride None
+order deny,allow
+deny from all
+allow from localhost
+</Directory>
+
+# This sets the viewable location of the mod_throttle status display.
+#
+# <location /throttle-info>
+# SetHandler throttle-info
+# </location>
+
+# Do not allow users to browse foreign files using symlinks in
+# their private webspace public_html.
+# Note: This should be changed if you modify the UserDir-Option.
+# We would really like to use LocationMatch but the Option we want
+# is ignored with that directive.
+
+<DirectoryMatch ^/home/.*/public_html>
+Options Indexes SymLinksIfOwnerMatch
+AllowOverride None
+</DirectoryMatch>
+
+<Directory /export/crawlspace/yum>
+    Options Indexes FollowSymLinks
+</Directory>
+
+<Directory /export/crawlspace/pgyum>
+    Options Indexes FollowSymLinks
+</Directory>
+
+<Directory /JumpStart/yum>
+    Options Indexes FollowSymLinks
+</Directory>
+
+# Do not allow retrieval of the override files, a standard security measure.
+<Files .htaccess>
+order allow,deny
+deny from all
+</Files>
+
+# You may place any other directories or locations you wish to have
+# access information for after this one.
+
