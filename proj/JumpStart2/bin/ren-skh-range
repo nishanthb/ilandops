@@ -1,0 +1,153 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings 'all';
+use Seco::AwesomeRange qw/expand_range/;
+use Getopt::Long;
+use DBI;
+
+my ( %argv, %input, $usage );
+$usage = "sourcerange destrange";
+
+%input = (
+      "u|update" => "do update for real (else -n)",
+      "n|nomodify" => "do NOT do update (default)",
+      "v|verbose"  => "spew extra data to the screen",
+      "h|help"     => "show option help"
+);
+
+my $result = GetOptions( \%argv, keys %input );
+$argv{"n"} ||= 1 unless ($argv{"u"});
+$argv{"v"} ||= $argv{"n"};
+
+if ((!$result) || ($argv{"h"})) {
+   &showOptionsHelp;
+   exit 0;
+}
+
+my $SKH    = "/usr/local/jumpstart/skh";
+my $SKHTAR = "/usr/local/jumpstart/skh_tar";
+die "Missing $SKH"    unless ( -d $SKH );
+die "Missing $SKHTAR" unless ( -d $SKHTAR );
+
+my $db =
+  DBI->connect( 'DBI:Pg:dbname=skh', 'js', 'foobar', { AutoCommit => 0 } )
+  or die;
+
+my $sel     = "select rsa,dsa from skh where node = ?";
+my $upd     = "update skh set node=?, rsa=?, dsa=? where node=?";
+my $sel_sth = $db->prepare($sel);
+my $upd_sth = $db->prepare($upd);
+
+my @from = expand_range( shift @ARGV ) or usage(1);
+my @to   = expand_range( shift @ARGV ) or usage(1);
+
+unless ( ( scalar @from ) == ( scalar @to ) ) {
+    die "ERROR: Source list is "
+      . ( scalar @from )
+      . " hosts while destination is "
+      . ( scalar @to )
+      . " hosts\n";
+} ## end unless ( ( scalar @from ) ...
+
+while (@from) {
+    my $f = shift @from;
+    my $t = shift @to;
+
+    my ( $rsa, $dsa ) = get_keys($f);
+    unless ($rsa) {
+        warn "$f get_keys empty\n";
+        next;
+    }
+    for ( $rsa, $dsa ) {
+        s/\Q$f\E/$t/;
+        s/.yahoo.com.inktomisearch.com/.yahoo.com/;
+        s/.inktomisearch.com.yahoo.com/.inktomisearch.com/;
+        s/.crawl.yahoo.net.inktomisearch.com/.crawl.yahoo.net/;
+    }
+    update_keys( $f, $t, $rsa, $dsa );
+    update_static( $f, $t );
+} ## end while (@from)
+
+if ($argv{"n"}) {
+  print "UPDATES NOT MADE.  If the above looks correct use the --update flag\n";
+} else {
+$db->commit;
+}
+
+
+
+sub get_keys {
+    my $name = shift;
+
+    print "DEBUG: getting keys for $name\n" if ($argv{"v"});
+    my $rv = $sel_sth->execute($name);
+    return unless $rv;
+
+    my ( $rsa, $dsa ) = $sel_sth->fetchrow_array;
+    return ( $rsa, $dsa );
+} ## end sub get_keys
+
+sub update_keys {
+    my ( $node, $new_name, $rsa, $dsa ) = @_;
+    print "INFO: setting values for $new_name ($node)\n";
+    if (!$argv{"n"}) {
+     my $rv = $upd_sth->execute( $new_name, $rsa, $dsa, $node );
+     return $rv;
+   }
+   return;
+} ## end sub update_keys
+
+sub skh_path {
+    my ($host) = @_;
+    my (@host) = split( /\./, $host );
+    return ( substr( $host[0], -2, 2 ) . "/" . $host );
+}
+
+sub update_static {
+    my ( $old, $new ) = @_;
+    my $oldpath = skh_path($old);
+    my $newpath = skh_path($new);
+    do_rename( "$SKH/$oldpath",        "$SKH/$newpath" );
+    do_rename( "$SKHTAR/$oldpath.tar", "$SKHTAR/$newpath.tar" );
+} ## end sub update_static
+
+sub do_rename {
+    my ( $old, $new ) = @_;
+    if ( -d $new ) {
+        warn "$new/ already exists, not touching $old\n";
+    } elsif ( -f $new ) {
+        warn "$new is a file, not  moving $old\n";
+    } else {
+        print "% mv $old $new\n" if ($argv{"v"});
+        if (! $argv{"n"} ) {
+            my ($i) = rename( $old, $new );
+            if ( !$i ) {
+                warn "Failed to move $old to $new - $!";
+            }
+        }
+    } ## end else [ if ( -d $new )
+} ## end sub do_rename
+
+sub usage {
+  showOptionsHelp();
+  exit (shift @_);
+}
+sub showOptionsHelp {
+    my ( $left, $right, $a, $b, $key );
+    my (@array);
+    print "Usage: $0 [options] $usage\n";
+    print "where options can be:\n";
+    foreach $key ( sort keys(%input) ) {
+        ( $left, $right ) = split( /[=:]/, $key );
+        ( $a,    $b )     = split( /\|/,   $left );
+        if ($b) {
+            $left = "-$a --$b";
+        } else {
+            $left = "   --$a";
+        }
+        $left = substr( "$left" . ( ' ' x 20 ), 0, 20 );
+        push( @array, "$left $input{$key}\n" );
+    } ## end foreach $key ( sort keys(%input...
+    print sort @array;
+} ## end sub showOptionsHelp

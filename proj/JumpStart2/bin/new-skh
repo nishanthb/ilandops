@@ -1,0 +1,93 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings 'all';
+use constant JS => "/usr/local/jumpstart";
+use Sys::Hostname;
+
+my $hostname = hostname();
+my $YSS = ($hostname =~ /\.yss\./);
+
+my $SKH_ORIG = $YSS ? "raw/skh" : "raw/skh.min";
+my $GEM_ROOT = $YSS ? "/var/gem" : "/usr/local/gemstone";
+my $SKH_WORK = "ssh_known_hosts.work";
+my $SKH_NEW  = "ssh_known_hosts.new";
+my $GEN_SKH  = JS . "/bin/gen-skh.pl";
+
+my $RANGE = '@ALL';
+
+if (@ARGV) {
+    $SKH_ORIG = shift @ARGV;
+    die "not a dir $SKH_ORIG" unless -d $SKH_ORIG;
+}
+
+if (@ARGV) {
+    $RANGE = shift @ARGV;
+}
+
+$ENV{PATH} = "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+
+chdir("$GEM_ROOT") or die "$GEM_ROOT: $!";
+
+# make a copy of what's current
+System("rsync -a --delete $SKH_ORIG/ $SKH_WORK");
+System("rm -rf $SKH_NEW");
+
+mkdir $SKH_NEW or die "$SKH_NEW: $!";
+chdir($SKH_NEW);
+System("$GEN_SKH $RANGE");
+chdir($GEM_ROOT);
+
+# now we have the original skh in $SKH_WORK
+# and the newly generated in $SKH_NEW
+# we'll rm files that don't exist anymore in NEW but are still in
+# the work dir
+# then we'll rm each file that has the same contents from $SKH_NEW
+# then rsync the remaining files - rsync is not very smart about files
+# with the same contents but different mtime
+my @work = map { s/^$SKH_WORK\///; $_ } glob("$SKH_WORK/*");
+my @new  = map { s/^$SKH_NEW\///;  $_ } glob("$SKH_NEW/*");
+
+# find files that don't exist anymore
+my %new;
+@new{@new} = undef;
+my @to_delete;
+for my $file (@work) {
+    unless ( exists $new{$file} ) {
+        push @to_delete, $file;
+    }
+}
+if (@to_delete) {
+    printf "Deleting %s from the current skh\n", join( ",", @to_delete );
+    unlink "$SKH_WORK/$_" for @to_delete;
+}
+
+for my $file (@new) {
+    if ( equal($file) ) {
+        unlink "$SKH_NEW/$file";
+    }
+}
+System("rsync -av $SKH_NEW/ $SKH_WORK/");
+
+# now $SKH_WORK has what we want - let's move into place
+system("rm -rf skh.old");
+rename $SKH_ORIG => "skh.old"   or die "$SKH_ORIG => skh.old: $!";
+rename $SKH_WORK => "$SKH_ORIG" or die "$SKH_WORK => $SKH_ORIG: $!";
+
+exit 0;
+
+sub System {
+    my $cmd = shift;
+
+    #print "% $cmd\n";
+    system($cmd);
+    if ( $? != 0 ) {
+        print "ERROR!\n";
+    }
+}
+
+sub equal {
+    my $filename = shift;
+    system("cmp -s $SKH_NEW/$filename $SKH_WORK/$filename");
+    return $? == 0;
+}

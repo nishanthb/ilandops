@@ -1,0 +1,131 @@
+#!/usr/bin/perl
+
+# Clues for this were found in
+# /usr/local/lib/perl5/site_perl/Seco/Jumpstart/Group.pm 
+# function gen_needed_ssh_keys
+
+use strict;
+use warnings 'all';
+use DBI;
+use Seco::AwesomeRange qw/:common/;
+use Seco::Jumpstart::JS_Utils qw/read_file WWWDATA/;
+use strict;
+
+sub usage {
+    die <<'EOF'
+Usage: rebuild-skh-range host1-host10 
+
+This is meant for when you fudge /usr/local/jumpstart/skh/ for whatever
+reason, to update the related files for jumpstart, netbooting, gemstone,
+etc.
+
+  Will repopulate the database with /usr/local/jumpstart/skh/...
+  Will rebuild the tar files in /usr/local/jumpstart/skh_tar/...
+  Will repopulate /usr/local/gemstone/raw/skh.min
+  Will repopulate /usr/local/gemstone/bigraw/skh
+  Will REMIND you to rerun gemstone(!)
+EOF
+} ## end sub usage
+
+my $range = shift @ARGV or usage();
+my @nodes = expand_range($range);
+die "bad range" unless (@nodes);
+
+# Adds missing keys to the database
+# using the file system as a source
+#
+#
+my $dbh =
+  DBI->connect( 'DBI:Pg:dbname=skh', 'js', 'foobar', { AutoCommit => 0 } )
+  or die;
+my $del     = "DELETE FROM skh WHERE node=?";
+my $ins     = "INSERT INTO skh (node, rsa, dsa) VALUES (?,?,?)";
+my $del_sth = $dbh->prepare($del);
+my $ins_sth = $dbh->prepare($ins);
+
+my @missing;
+my @added;
+for my $node (@nodes) {
+    my $rsa = read_ssh_key( $node, 'rsa' );
+    unless ($rsa) {
+        push @missing, $node;
+        next;
+    }
+    push(@added,$node);
+    my $dsa = read_ssh_key( $node, 'dsa' );
+    $del_sth->execute($node);
+    $ins_sth->execute( $node, $rsa, $dsa );
+    fix_skh_tar($node);
+
+} ## end for my $node (@nodes)
+$dbh->commit;
+$del_sth->finish;
+$dbh->disconnect;
+
+print "ADDED: ",        compress_range( \@added ),   "\n" if @added;
+print "MISSING KEYS: ", compress_range( \@missing ), "\n" if @missing;
+
+exit unless (@added);
+
+my $hostname = `hostname`;
+chomp $hostname;
+if ( $hostname =~ /\.yss\./ ) {
+    print "Running bin/new-skh\n";
+    system("bin/new-skh");
+} else {
+    print "% bin/new-skh /usr/local/gemstone/raw/skh.min \@BIG_SKH\n";
+    system('bin/new-skh /usr/local/gemstone/raw/skh.min @BIG_SKH');
+    print "% bin/new-skh /usr/local/gemstone/bigraw/skh \@ALL\n";
+    system('bin/new-skh /usr/local/gemstone/bigraw/skh @ALL');
+} ## end else [ if ( $hostname =~ /\.yss\./)
+
+print <<EOF ;
+  ######################################################
+  # REMAINING STEPS:                                   #
+  #                                                    #
+  # jumpstart:                                         #
+  # fornode.pl -r @BOOTHOST bin/slave {}               #
+  #   (or target the boothosts you care about)         #
+  #                                                    #
+  # cd /usr/local/gemstone                             #
+  # bin/make   -r [range],@BOOTHOST,@ADMIN             #
+  #   (or target the boothosts and admins of the hosts #
+  #    in question)                                    #
+  ######################################################
+EOF
+
+
+sub read_ssh_key {
+    my $node = shift;
+    my $type = shift;
+
+    my $hash;
+    if ( $node =~ /\./g ) {
+
+        # will still barf if someone names a machine "a.foo"
+        $hash = substr( $node, pos($node) - 3, 2 );
+    } else {
+        $hash = substr( $node, -2 );
+    }
+    return read_file(
+               "/usr/local/jumpstart/skh/$hash/$node/ssh_host_${type}_key.pub");
+} ## end sub read_ssh_key
+
+sub fix_skh_tar {
+    my $node = shift;
+
+    my $hash;
+    if ( $node =~ /\./g ) {
+
+        # will still barf if someone names a machine "a.foo"
+        $hash = substr( $node, pos($node) - 3, 2 );
+    } else {
+        $hash = substr( $node, -2 );
+    }
+    my $tar_file = "/usr/local/jumpstart/skh_tar/$hash/$node.tar";
+    my $wwwdata  = WWWDATA;
+    my $cmd =
+      "cd /usr/local/jumpstart/skh/$hash/$node ; tar cf $tar_file  . ;  chown -R $wwwdata . ; chmod 755 .";
+    print "% $cmd\n";
+    system $cmd;
+} ## end sub fix_skh_tar

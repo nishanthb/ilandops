@@ -1,0 +1,60 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings 'all';
+use DBI;
+use Seco::AwesomeRange qw/:common/;
+use Seco::Jumpstart::JS_Utils qw/read_file/;
+
+# Adds missing keys to the database 
+# using the file system as a source
+#
+#
+my $dbh = DBI->connect('DBI:Pg:dbname=skh', 'js', 'foobar', { AutoCommit => 0 })
+  or die;
+my $sel     = "SELECT COUNT(rsa) FROM skh WHERE node=?";
+my $ins     = "INSERT INTO skh (node, rsa, dsa) VALUES (?,?,?)";
+my $sel_sth = $dbh->prepare($sel);
+my $ins_sth = $dbh->prepare($ins);
+
+my $range = shift;
+my @nodes = expand_range($range ? $range : '@ALL');
+@nodes = expand_range('@ALL') unless @nodes;
+my @missing;
+my @added;
+for my $node (@nodes) {
+    $sel_sth->execute($node);
+    my $data = ($sel_sth->fetchrow_array)[0];
+    if (not $data) {
+
+        # add skh
+        my $rsa = read_ssh_key($node, 'rsa');
+        unless ($rsa) {
+            push @missing, $node;
+            next;
+        }
+        my $dsa = read_ssh_key($node, 'dsa');
+        $ins_sth->execute($node, $rsa, $dsa);
+        push @added, $node;
+    }
+}
+$dbh->commit;
+$sel_sth->finish;
+$dbh->disconnect;
+
+print "ADDED: ",  compress_range(\@added),   "\n" if @added;
+print "MISSING KEYS: ", compress_range(\@missing), "\n" if @missing;
+
+sub read_ssh_key {
+    my $node = shift;
+    my $type = shift;
+
+    my $hash;
+    if ($node =~ /\./g) {
+        # will still barf if someone names a machine "a.foo"
+        $hash = substr($node, pos($node) - 3, 2);
+    } else {
+        $hash = substr($node, -2);
+    }
+    return read_file("/usr/local/jumpstart/skh/$hash/$node/ssh_host_${type}_key.pub");
+}

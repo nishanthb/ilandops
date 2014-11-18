@@ -1,0 +1,3 @@
+#!/bin/sh
+
+OCAMLRUNPARAM='h=100M,s=40M' $0.real $*

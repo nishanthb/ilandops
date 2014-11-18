@@ -1,0 +1,251 @@
+#!/usr/local/bin/perl
+#
+
+use strict;
+use warnings 'all';
+use constant DEFAULTLOG => "info";
+use constant JS         => "/usr/local/jumpstart";
+
+use Getopt::Long;
+use IO::Socket;
+use Sys::Hostname;
+
+use Seco::AwesomeRange qw(expand_range compress_range);
+use Seco::sudo 'root';
+
+use Seco::Jumpstart::DB;
+use Seco::Jumpstart::GroupsCfg;
+use Seco::Jumpstart::DhcpdGen;
+use Seco::Jumpstart::Logger;
+
+my $hostname = hostname();
+my $YSS = ( $hostname =~ /\.yss\./ );
+my ( $debug, $quiet, $verbose, $loglevel );
+my $no_skh;
+my $force_skh;
+my ($only_make);
+my ( $all, $only_range );
+my ( $range, $mode, $force );
+
+Seco::AwesomeRange::want_warnings(0);
+chdir(JS) or die;
+
+my @arguments = @ARGV;
+GetOptions(
+    "debug"   => \$debug,
+    "quiet"   => \$quiet,
+    "range=s" => \$range,
+    "mode=s"  => \$mode,
+    "force"   => \$force,
+    "verbose" => \$verbose,
+    "noskh"   => \$no_skh,
+    "skh"     => \$force_skh,
+    "only"    => \$only_make,
+    "all"     => \$all
+) or usage();
+
+my $logger = Seco::Jumpstart::Logger->getLogger;
+if ($debug) {
+    $loglevel = "debug";
+}
+elsif ($verbose) {
+    $loglevel = "info";
+}
+elsif ($quiet) {
+    $loglevel = "warn";
+}
+else {
+    $loglevel = DEFAULTLOG;
+}
+$logger->setVerbose($loglevel);
+
+my $user = $ENV{SUDO_USER} || $ENV{USER} || $ENV{LOGNAME} || `whoami`;
+# if ( $user eq "root" ) {
+#     print <<EOT;
+
+# Logging in as root and running jumpstart/bin/make is not allowed due to 
+# security policies.
+
+# Please log in to $hostname as your normal user and then use sudo.
+
+# If you did log in as a normal user and are still seeing this message
+# please page dmuino-pager\@inktomi.com
+
+# EOT
+#     exit 1;
+# }
+
+#system("/etc/service/tinydns/pull pain") if -x "/etc/service/tinydns/pull";
+
+if ( $range and not $all ) {
+    $only_range = 1;
+
+    # verify that all nodes are in '@ALL'
+    my @range     = expand_range("$range");
+    my @all_range = expand_range("($range) & \@ALL");
+    if ( @range != @all_range ) {
+        print "\n";
+        $logger->log( "error", "Not all nodes are in gemstone" );
+        printf( "\nYour range: %s\n", compress_range( \@range ) );
+        my $nodes_in_gemstone;
+        if (@all_range) {
+            $nodes_in_gemstone = compress_range( \@all_range );
+        }
+        else {
+            $nodes_in_gemstone = "NONE";
+        }
+
+        print "Nodes in gemstone: $nodes_in_gemstone\n";
+        print "Add your nodes to gemstone, and then run bin/make -r vortex\n";
+        exit(1);
+    }
+}
+
+my $server = IO::Socket::INET->new( LocalPort => 5867, Proto => "udp" );
+my $tty = `tty`;
+chomp $tty;
+$tty =~ s#/dev/##;
+unless ($server) {
+    print STDERR "$0 already running by someone else\n";
+    my @ps = `/bin/ps -aefww | grep make`;
+    print @ps;
+    print "\n";
+
+    foreach (@ps) {
+        my @words = split(/\s+/);
+        if ( $words[5] =~ m/pts/ ) {
+            next if ( $words[5] eq $tty );
+            system " w | grep $words[5] ";
+        }
+    }
+    die "Please try running $0 later.\n";
+}
+
+log_usage( $user, \@arguments );
+my $gc = Seco::Jumpstart::GroupsCfg->new;
+
+if ($only_range) {
+    $gc->host_records_range($range);
+}
+else {
+    # do all machines
+    $gc->create_host_records;
+}
+$gc->create_profiles;
+$gc->create_pxe_configs;
+
+unless ($no_skh) {
+    my $did_keys = $gc->gen_needed_ssh_keys( !$no_skh );
+
+    if ( $did_keys || $force_skh ) {
+        $logger->log( "info", "Running new-skh" );
+        if ($YSS) {
+            system("bin/new-skh");
+        }
+        else {
+            system('bin/new-skh /usr/local/gemstone/raw/skh.min @BIG_SKH');
+            system('bin/new-skh /usr/local/gemstone/bigraw/skh @ALL');
+        }
+    }
+    else {
+        $logger->log( "info",
+"We didn't generate new keys, and -skh not specified. Skipping CopySkhToGemstone"
+        );
+    }
+}
+
+my $dhcp = Seco::Jumpstart::DhcpdGen->new($gc);
+
+# Generate dhcpd.conf for every admin node that we know about
+# input: conf/admin.cf
+if ($only_range) {
+    my @boothosts = get_boothost($range);
+    $logger->log( "info",
+        "Generating dhcpd configs for " . join( ",", @boothosts ) );
+    for my $boothost (@boothosts) {
+        $dhcp->generate($boothost);
+    }
+}
+else {
+    $logger->log( "info", "Generating dhcpd configs for all admins" );
+    $dhcp->generate_all;
+}
+$logger->log( "info", "Committing DB" );
+Seco::Jumpstart::DB->get_dbh->commit;
+system( "cp -p " . JS . "/conf/admins.cf /usr/local/gemstone/conf/" );
+
+chdir( "modjs" ) or warn "Can't chdir to modjs: $!";
+my $js_tarball = JS . "/out/tftpboot/jumpstart.tar.gz";
+system("tar zcf $js_tarball .")
+  and warn "Creating $js_tarball: $!";
+system("touch /usr/local/jumpstart/state/make");
+
+close $server;    # release the lock
+
+chdir(JS);
+if ( $range and not $only_make ) {
+    unless ($mode) {
+        $logger->log( "info", "Need a mode for bin/boot. Assuming normal" );
+        $mode = "n";
+    }
+    $force = $force ? "-f" : "";
+    $logger->log( "info", "bin/boot -u $user -r $range -m $mode $force" );
+    my @bh = expand_range("bh($range)");
+    if (-x "/usr/local/bin/mcmd") {
+        # slaving
+        $logger->log("info", "Slaving boothosts");
+        system("mcmd", "-t", "-1", "-g", "-1", "-m", "5", "-p",
+            "-r", join(",", @bh), 
+            "bin/slave", "-q", "HOSTNAME");
+    }
+    system("/usr/local/jumpstart/bin/boot -r '$range' -m $mode $force");
+}
+
+exit 0;
+
+sub usage {
+    print <<EOT;
+$0 [options]
+
+Options
+    -d|--debug
+    -v|--verbose
+    -q|--quiet
+    -r|--range      Invoke bin/boot with the given range.
+    -m|--mode       mode for bin/boot
+    -f|--force      force for bin/boot
+    -n|--noskh      Don't generate ssh keys, but instead print a warning
+    -o|--only       Only make, don't bin/slave - bin/boot
+    -a|--all        Update all host records
+    -skh            Force running the 'generation of a new skh file' step
+    --undistributed Only generate ssh keys on this host
+
+By default if you specify a range bin/make will only update the
+host records for that particular range. If you want to update all
+specify --all.
+
+EOT
+    exit 0;
+}
+
+sub get_boothost {
+    my $range = shift;
+    return expand_range("#boot_v(#vlan($range))");
+}
+
+sub log_usage {
+    my ( $user, $args ) = @_;
+
+    my @gmtime = gmtime();
+    my $time   = sprintf(
+        "%d-%02d-%02d_%02d:%02d:%02d",
+        $gmtime[5] + 1900,
+        $gmtime[4] + 1,
+        $gmtime[3], $gmtime[2], $gmtime[1], $gmtime[0]
+    );
+
+    open my $log_fh, ">>", JS . "/logs/make.log"
+      or die "can't open logfile: $!";
+    print $log_fh "$time $user $tty make " . join( " ", @$args ) . "\n";
+    close $log_fh;
+}

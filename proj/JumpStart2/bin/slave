@@ -1,0 +1,101 @@
+#!/usr/local/bin/perl -w
+
+use strict;
+use Getopt::Long;
+use Seco::AwesomeRange qw(:common);
+
+$|++;
+
+my %opt = (
+    'r|range=s' => "Range of nodes to slave to",
+     'q|quiet'   => 'Be quiet',
+    'h|help'    => "Display this text",
+);
+my %o;
+usage() unless GetOptions(\%o, keys %opt);
+usage() if ($o{h});
+
+my $range = $o{r} || shift();
+usage("No range specified") unless $range;
+
+sub say {
+    my $msg = shift;
+    print "$msg\n" unless $o{q};
+}
+
+
+my %rsync = (
+    "conf/*.cf"                => "/JumpStart/conf/",
+    "out/tftpboot/"            => "/tftpboot/",
+    "files/tftpboot/"          => "/tftpboot/",
+    # ting: apache2 config need re-orgn.
+    # "files/httpd.conf"         => "/etc/apache2/",
+    # "files/httpd.include"      => "/JumpStart/",
+    "out/dhcpd/__NODE__"       => "/etc/dhcpd.conf",
+    "skh_tar/"                 => "/JumpStart/ssh-keys/ --delete",
+    "cgi/"                     => "/JumpStart/cgi/",
+    "out/profiles/"            => "/JumpStart/profiles/",
+    "jsbin/"                   => "/JumpStart/bin/",
+    "var/jumpstart.sqlite.dat" => "/JumpStart/var/"
+);
+
+BOOTHOST:
+foreach my $node (expand_range($range)) {
+    open my $touch, ">/usr/local/jumpstart/state/$node";
+    close $touch;
+
+    my $pain = 0;
+
+    foreach my $source (keys %rsync) {
+        my $dest = $rsync{$source};
+        $source =~ s/__NODE__/$node/g;
+        say("$node: syncing $source");
+
+	system("rsync -a /usr/local/jumpstart/$source $node:$dest");
+
+        if ($? != 0) {
+            warn "ERROR: $source $node:$dest\n";
+            next BOOTHOST;
+        }
+    }
+    say("$node: restarting dhcpd");
+
+    system "ssh $node 'svc -t /service/rs-dhcpd'";
+
+    if (1) {
+        say("$node: restarting httpd");
+     #   system "ssh $node '/etc/init.d/httpd graceful'";
+     #XXX:(yuting): how to make it compat with other system like CentOS?
+     # system "ssh $node '/etc/init.d/apache2 graceful'";
+	system "ssh $node '/etc/init.d/httpd graceful'";
+    }
+    print "$node: OK\n";
+}
+
+sub usage {
+    my $msg = shift;
+    $msg = "\n$msg\n" if ($msg);
+    $msg ||= '';
+
+    print "Usage: $0 [options]\n";
+
+    my @array;
+    foreach my $key (keys %opt) {
+        my ($left, $right) = split /[=:]/, $key;
+        my ($a,    $b)     = split /\|/,   $left;
+
+        if ($b) {
+            $left = "-$a, --$b";
+        }
+        else {
+            $left = "    --$a";
+        }
+
+        $left = substr($left . (' ' x 20), 0, 20);
+        push @array, "$left $opt{$key}\n";
+    }
+
+    print sort @array;
+    die "$msg\n";
+}
+

@@ -1,0 +1,80 @@
+#! /usr/local/bin/perl5 -w
+
+use strict;
+use Fatal qw/:void open close chdir mkdir/;
+use vars qw($DIR $KEYS $POOLSIZE %KEYS $count $time $lastkey $count2 );
+
+$DIR      = "/export/crawlspace/sshkeypool/keys";
+$POOLSIZE = 2500;
+%KEYS     = (
+    ssh_host_rsa_key => 'rsa',
+    ssh_host_dsa_key => 'dsa',
+    ssh_host_key     => 'rsa1'
+);
+
+$SIG{"INT"} = sub {
+    print "Exiting on SIGINT\n";
+    cleanup();
+    exit 1;
+};
+
+chdir $DIR;
+$time = time;
+check_count();
+
+my $i = 1;
+while ( $count++ < $POOLSIZE ) {
+    print "Working on $count/$POOLSIZE\n";
+    gen_another_key();
+    check_count() if ( ( $i++ % 20 ) == 0 );
+}
+$lastkey = undef;
+
+print "Sleeping for a minute.\n";
+sleep 60;
+
+sub check_count {
+    print "Checking count ...\n";
+    my @existing = glob("*");
+    $count = scalar @existing;
+    print ".. found $count keys\n";
+}
+
+sub gen_another_key {
+    my $template = "." . join( "_", $time, $$, $count );
+    $lastkey = $template;    # for END {}
+
+    mkdir( $template, 0700 );
+    my %keys = %KEYS;
+    foreach my $file ( keys %KEYS ) {
+        my $type = $KEYS{$file};
+        my $cmd  =
+"nice ssh-keygen -N '' -f $template/$file -t $type -C root\@SSHPOOL > /dev/null 2>/dev/null </dev/null";
+
+        #    print "% $cmd\n";
+        system $cmd;
+        unless ( -s "$template/$file" ) {
+            cleanup();
+            die "Failed to generate a key using: $cmd\n";
+        }
+    }
+    my $t = $template;
+    $t =~ s/^.//;
+    rename( $template, $t );
+
+    undef $lastkey;    # so cleanup won't purge our last good key
+
+    # Wait up to 1 minute, depending on how populated we are
+    sleep 10 if ( $count > ( $POOLSIZE / 2 ) );
+}
+
+sub cleanup {
+    if ( defined $lastkey ) {
+        if ( -d "$DIR/$lastkey" ) {
+            print STDERR "Cleaning up unfinished $DIR/$lastkey\n";
+            unlink( glob("$DIR/$lastkey/*") );
+            rmdir("$DIR/$lastkey");
+            undef $lastkey;
+        }
+    }
+}
