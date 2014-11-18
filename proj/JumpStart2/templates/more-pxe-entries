@@ -1,0 +1,68 @@
+LABEL memtest86
+  KERNEL memtest
+
+LABEL memtest86_34
+  KERNEL memtest_34
+
+LABEL memtest86_auto
+  KERNEL memtest_auto
+
+LABEL flashdos
+  KERNEL memdisk
+  APPEND initrd=flashdos.gz
+
+LABEL hostraidoff
+  KERNEL memdisk
+  APPEND initrd=hostraidoff.gz
+
+LABEL ipmilogflash
+  KERNEL memdisk
+  APPEND initrd=ipmilogflash.gz
+
+LABEL crcerrorflash
+  KERNEL memdisk
+  APPEND initrd=crcerrorflash.gz
+
+LABEL gipmilogflash
+  KERNEL memdisk
+  APPEND initrd=gipmilogflash.gz
+
+LABEL yipmi127
+  KERNEL memdisk
+  APPEND initrd=yipmi127.gz floppy c=8 s=32 h=64
+
+LABEL b20flash-cc1
+  KERNEL B20-vmlinuz
+  APPEND console=tty0 console=ttyS1,9800N8 initrd=B20-initrd.img root=/dev/ram0 init=disklessrc NFSROOT=74.6.161.16:/export/home/centos-root ramdisksize=16317 ethernet=eth0 ramp=intelflash chassis=nodmi
+
+LABEL b20flash-sk1
+  KERNEL B20-vmlinuz
+  APPEND console=tty0 console=ttyS1,9800N8 initrd=B20-initrd.img root=/dev/ram0 init=disklessrc NFSROOT=68.180.163.100:/export/home/centos-root ramdisksize=16317 ethernet=eth0 ramp=intelflash chassis=nodmi
+
+LABEL b24yflash
+  KERNEL memdisk
+  APPEND initrd=hp-dl160g5_2008-07-21_v1.0.flp
+
+LABEL a21vflash
+  KERNEL memdisk
+  APPEND initrd=a21v_Aug-21-2008.flp
+
+LABEL a20drxflash
+  KERNEL memdisk
+  APPEND initrd=a20drx-a21x_89.flp floppy c=8 s=32 h=64
+
+LABEL a21xflash
+  KERNEL memdisk 
+  APPEND initrd=a20drx-a21x_89.flp floppy c=8 s=32 h=64
+
+LABEL rackflash
+  KERNEL memdisk 
+  APPEND initrd=a20drx-rackable-89.iso floppy c=8 s=32 h=64
+
+LABEL a21wflash
+  KERNEL memdisk
+  APPEND initrd=a21w-sas-dell-S58R-3A07.iso floppy c=7 h=255 s=63
+
+LABEL b24dmryflash
+  KERNEL memdisk
+  APPEND initrd=b24dmry_flashUpdate.iso

@@ -1,0 +1,39 @@
+#!/usr/bin/perl -w
+#
+use strict;
+use vars qw(@diskconfig @liloconfig $diskimage $etcdir $motd_tag $installer_script);
+use vars qw(%hostrecord $eth0_mtu $eth1_mtu $eth2_mtu $kernel_package 
+    $tigon3_module $raid_chunk_size $min_disk_speed $package_installer
+    $bootloader $serial_port $serial_speed $serial_parity $serial_bits
+    $enforce_yst_layout);
+
+#print "We are in ::GROUP_NAME::\n";
+
+$installer_script = "::INSTALLER_SCRIPT::";
+$diskimage = "http://boothost/tftpboot/::DISK_IMAGE::";
+$etcdir = "::TEMPLATE_DIR::";
+$motd_tag = "::MOTD_TAG::";
+$eth0_mtu = "::ETH0_MTU::";
+$eth1_mtu = "::ETH1_MTU::";
+$eth2_mtu = "::ETH2_MTU::";
+$kernel_package = "::KERNEL_PKG::";
+$tigon3_module = "::TIGON3_MODULE::";
+$raid_chunk_size = "::RAID_CHUNK_SIZE::";
+$min_disk_speed = "::MIN_DISK_SPEED::";
+$package_installer = "::PACKAGE_INSTALLER::";
+$bootloader = "::BOOTLOADER::";
+$serial_port = "::SERIAL_PORT::";
+$serial_speed = "::SERIAL_SPEED::";
+$serial_parity = "::SERIAL_PARITY::";
+$serial_bits = "::SERIAL_BITS::";
+$enforce_yst_layout = "::ENFORCE_YST_LAYOUT::";
+
+@diskconfig = split(/\n/, <<"EOF");
+::DISK_CONFIG::
+EOF
+
+@liloconfig = split(/\n/, <<"EOF");
+::LILO_CONFIG::
+EOF
+
+1;

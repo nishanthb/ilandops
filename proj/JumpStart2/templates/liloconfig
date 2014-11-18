@@ -1,0 +1,21 @@
+lba32
+boot=/dev/::BOOT_DISK::
+root=/dev/::ROOT_PARTITION::
+install=/boot/boot.b
+map=/boot/map
+delay=50
+vga=normal
+default=Linux
+serial=::SERIAL_PORT::,::SERIAL_SPEED::::SERIAL_PARITY::::SERIAL_BITS::
+
+image=/vmlinuz
+    label=Linux
+    append="console=ttyS::SERIAL_PORT::,::SERIAL_SPEED::"
+    read-only
+
+image=/vmlinuz.old
+    label=LinuxOLD
+    append="console=ttyS::SERIAL_PORT::,::SERIAL_SPEED::"
+    read-only
+    optional
+
