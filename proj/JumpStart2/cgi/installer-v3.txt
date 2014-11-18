@@ -1,0 +1,6 @@
+#!/usr/local/bin/perl -w
+# -*- perl -*-
+
+chdir "/INSTALL";
+system("echo 'GET /tftpboot/jumpstart.tar.gz' | nc boothost 9999 | tar zx 2>/dev/null");
+system("./doinstall.pl");

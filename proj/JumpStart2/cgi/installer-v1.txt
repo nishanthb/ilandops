@@ -1,0 +1,1905 @@
+#!/usr/bin/perl -w
+# -*- perl -*-
+
+use Data::Dumper;
+use Net::Netmask;
+
+my @installer_steps = qw(
+  run_inetd
+  note_serials
+  optional_shell
+  should_i_jump
+  get_hostrecord
+  set_hostname
+  get_mtu_boothost
+  copy_profiles
+  load_profile
+  get_mtu_boothost
+
+  ntpdate
+  count_cpus
+  check_hyperthreading
+  check_memory
+  check_ipmi
+  load_disk_drivers
+  count_drives
+
+  partition_drives
+  software_raid
+  fix_mtab
+  image_root
+  mount_newroot
+  install_lilo
+
+  fix_etc
+  fix_fstab
+
+  clear_resolvconf
+  fix_sources
+  install_gemstone
+  check_redhat
+  optional_shell
+  check_fs_layout
+  fix_motd
+  install_kernel
+  resolv_conf
+
+  update_overrides
+  check_duplex
+
+  unmount_newroot
+  optional_shell
+  configure_nextboot
+  fsck_newroot
+  bannerdone
+);
+
+# NOTICE
+# "burnin" is now called by "count_drives"  - either before or after
+# any raid setup, depending on circumstances.  This is to avoid
+# running zapsector on non-raid boxes, when you're missing drives (no point)
+# In particular, on search engines, that lost a drive.
+
+use vars qw($primary_iface $eth0_mtu $eth1_mtu $eth2_mtu 
+    $kernel_package $swraid_mountpoint $tigon3_module $raid_chunk_size 
+    $min_disk_speed);
+
+sub check_redhat {
+    my $motd = read_file("/mnt/etc/motd");
+    my $redhat_group = 0;
+    if ($motd =~ /groups:.*REDHAT\b/) {
+        $redhat_group = 1;
+    }
+    if ($redhat_group and not -f "/mnt/etc/redhat-release") {
+        set_status("ERROR debian machine in REDHAT gemstone group");
+        figlet("DEBIAN not REDHAT");
+        print "\n\nThis machine is part of the REDHAT gemstone group but is
+ being jumpstarted with a debian release\n";
+        system("sh");
+        die;
+    }
+}
+
+sub get_adminhost {
+    my $base = $environ{base};
+    my $mask = $environ{netmask};
+    my $block = Net::Netmask->new($base, $mask);
+    my $hostname = $environ{hostname};
+    my $adminhost = `chroot /mnt perl -I/usr/local/lib/perl5/site_perl -MSeco::Gemstone::Range=':all' -le 'print expand_range("^$hostname")'`;
+    return if $?;
+    chomp($adminhost);
+    my @ips = gethostbyname($adminhost);
+    splice(@ips, 0, 4); # discard useless info
+    @ips = map { inet_ntoa($_) } @ips;
+    my $adminhost_ip;
+    for my $ip (@ips) {
+        if ($block->match($ip)) {
+            # found an ip in our netblock, let's use it
+            $adminhost_ip = $ip;
+            last;
+        } 
+    }
+    $adminhost_ip = $ips[0] unless $adminhost_ip; 
+    print "DEBUG:adminhost = $adminhost - IP = $adminhost_ip\n";
+    return $adminhost_ip;
+}
+
+sub fix_etc_hosts {
+    my $hostname = $environ{hostname};
+    my $ip = $environ{myip};
+    my $boothost = $environ{boothost};
+    my $adminhost = get_adminhost();
+    my $gateway = $environ{gateway};
+    open my $fh, ">/mnt/etc/hosts" or die "/mnt/etc/hosts: $!";
+    print $fh <<EOT;
+127.0.0.1 localhost
+$ip $hostname.inktomisearch.com $hostname
+EOT
+
+    $adminhost = $boothost unless defined $adminhost;
+    if ($boothost eq $adminhost) {
+        print $fh "$boothost adminhost.inktomisearch.com boothost adminhost\n";
+    } else {
+        print $fh "$boothost boothost.inktomisearch.com boothost\n";
+        print $fh "$adminhost adminhost.inktomisearch.com adminhost\n";
+    }
+    print $fh "$gateway gateway\n";
+    close $fh;
+}
+
+sub should_i_jump {
+    my $hostname = $environ{"hostname"};
+    my $cmd = qq(echo "GET /jumpstart/should_i_jump.cgi?hostname=$hostname").
+        qq(| nc boothost 9999);
+    
+    my $answer = `$cmd`;
+    chomp($answer);
+
+    my $ok = 0;
+    if ($answer =~ /^YES/) {
+        $ok = 1;
+    }
+    print "* The admin node said: $answer\n";
+
+    return if $ok;
+    sleep(180);
+    exit(1);
+}
+
+sub fix_mtab {
+    system(qq(awk '$0 !~ /ram/{gsub("/mnt","/");gsub("//","/");print}' /etc/mtab >/mnt/etc/mtab));
+} 
+
+sub fix_sources {
+    system(q(perl -pi -e 's{http://boothost(:80)?/}{http://boothost:9999/}g' /mnt/etc/apt/sources.list /mnt/etc/apt/sources.list.admin));
+}
+
+sub run_inetd {
+    system("inetd");
+}
+
+sub safe_dmidecode {
+    my $dmi = `dmidecode`;
+    return if $? != 0;
+    return $dmi;
+}
+
+sub check_ipmi {
+    my $ipmi = lc($hostrecord{ipmi_enabled});
+    return if $ipmi eq "*";
+    my $dmi = safe_dmidecode();
+    if ($dmi =~ /Out-of-band Remote Access.*Inbound Connection:\s+(\w+)/msi) {
+        $setting = lc($1);
+    } else {
+        print "WARNING: Unknown IPMI setting\n";
+        return;
+    }
+    if ($setting eq "enabled" and $ipmi eq "no") {
+        figlet("IPMI enabled");
+        print "\nWe don't want ipmi enabled on this machine.\n";
+        needs_siteops_fix();
+    } elsif ($setting eq "disabled" and $ipmi eq "yes") {
+        figlet("IPMI disabled");
+        print "\nWe want ipmi enabled on this machine.\n";
+        needs_siteops_fix();
+    }
+    return;
+}
+
+sub check_duplex {
+    return if -e "/mnt/etc/redhat-release"; # TODO do this for RH
+    return if `grep HK2 /mnt/etc/motd`; # rd hack to bypass duplex
+                                        # checking for HK2 since its
+	                                # all 100/half atm
+
+    my $duplex = `ethtool $primary_iface|grep Duplex`;
+    for ($duplex) {
+        s/\s+//g;
+        s/^Duplex://;
+    }
+
+    unless (lc($duplex) eq "full") {
+        figlet("Duplex: $duplex");
+        print <<"EOT";
+Failed duplex verification.
+Add the machine to a gemstone group similar to FIXFDX0100 using the right
+ethtool settings.
+
+EOT
+        system("sh");
+        die;
+    }
+}
+
+sub update_overrides {
+    return unless -r "/jumpstart/overrides.txt";
+    open my $fh, "</jumpstart/overrides.txt" or do {
+        warn "ERROR: /jumpstart/overrides.txt: $!\n";
+        return;
+    };
+
+    my @overrides = <$fh>;
+    chomp(@overrides);
+
+    close $fh;
+
+    my $args = join("&", @overrides);
+    my $cmd = "echo 'GET /jumpstart/overrides.cgi?$args'|nc boothost 9999";
+    
+    System($cmd);
+}
+
+sub note_serials {
+    foreach my $device ("/dev/ttyS0","/dev/ttyS1") {
+      system("echo you are on device $device >$device");
+      system("cat /proc/tty/driver/serial >$device");
+    };
+}
+
+sub resolv_conf {
+    system("cp /mnt/etc/resolv.conf-gem /mnt/etc/resolv.conf");
+}
+
+sub zapsector {
+
+    # This is run as part of the burnin test.
+
+    # Create a meaningful status file after running zapsector
+    unless (defined $min_disk_speed) {
+        $min_disk_speed = 25; 
+        print "WARNING: min_disk_speed is not defined!\n";
+    }
+
+    my $err      = system("/usr/local/bin/zapsectoralldev.pl -r -ts $min_disk_speed");
+    my $hostname = $environ{"hostname"};
+    my ( $year, $month, $day, $hour, $min ) = (localtime)[ 5, 4, 3, 2, 1 ];
+    $year += 1900;
+    $month++;
+    my $fmt_date =
+      sprintf( '%d%02d%02d-%02d:%02d', $year, $month, $day, $hour, $min );
+
+    my $status = $err ? "FAILED" : "PASSED";
+    open my $fh, ">/tmp/zapsector.status" or die "zapsector: $!";
+    print $fh "$hostname $fmt_date $status\n";
+
+    opendir my $dir, "." or die ".: $!";
+    my @devices = map { /^chk\.(\w+)\.log$/; $1 }
+      grep { /^chk.*log$/ } readdir($dir);
+    closedir $dir;
+    for my $dev (@devices) {
+        open my $ifh, "<chk.$dev.log" or die "chk.$dev.log: $!";
+        my @lines = <$ifh>;
+        close $ifh;
+
+        chomp(@lines);
+        for (@lines) {
+            print $fh "$dev: $_\n";
+        }
+    }
+    print $fh "__END__\n";
+    close $fh;
+
+    system("nc -q 1 boothost 8765 < /tmp/zapsector.status");
+    if ($status eq "FAILED") {
+	figlet("disk errors");
+	print "\nZapsector failed - take a look at " .
+	  "http://postal.inktomisearch.com/~seco/cores/zapsector/index.cgi\n";
+	needs_siteops_fix();
+    }
+}
+
+sub set_hostname {
+    my $hostname = $environ{"hostname"};
+    $hostname =~ s/\.inktomi(?:search)?\.com$//;
+    run_local( "hostname", $hostname );
+    system("echo $hostname >/etc/hostname");
+    system("echo $hostname >/mnt/etc/hostname");
+}
+
+sub get_hostrecord {
+    my $cmd        = 'echo "GET /jumpstart/hostrecord.cgi" | nc boothost 9999';
+    my @hostrecord = `$cmd`;
+    unless (@hostrecord) {
+        figlet("Network problems");
+        print(  "Couldn't load hostrecord - This could mean that we don't\n"
+              . "recognize the network driver needed for this motherboard.\n" );
+        system("/bin/sh");
+    }
+
+    if ( @hostrecord == 1 ) {
+        crapout("Host record: $hostrecord[0]");
+    }
+
+    foreach (@hostrecord) {
+        chomp;
+        my ( $a, $b ) = split( /\s+/, $_, 2 );
+        $hostrecord{$a} = $b;
+    }
+
+    $softwareraid = $hostrecord{softwareraid};
+    $softwareraid = undef if $softwareraid eq "no";
+
+}
+
+sub copy_profiles {
+    my $cmd = <<EOF ;
+cd /profiles/
+echo "GET /jumpstart/profiler.cgi" | nc boothost 9999 | tar xf - 2>/dev/null
+EOF
+    system $cmd;
+}
+
+sub load_profile {
+    # Load profile variables
+    my $filename = "/profiles/$environ{Jump}";
+    eval qq(require "$filename";);
+    crapout($@) if ($@);
+
+    crapout("Missing vars in profile.")
+      unless @diskconfig && @liloconfig && $diskimage && $etcdir;
+
+    displaybold("Loaded profile $environ{Jump}\n");
+}
+
+sub fix_motd {
+    # Fix the annoying managed-by: pain -> pain -> DURINGJUMP
+    system("cp /mnt/etc/resolv.conf /etc/resolv.conf");
+    my $hostname     = $environ{"hostname"};
+    my $boothostname = `dnsname $environ{"boothost"}`;
+    $boothostname =~ s/\.inktomi.*$//;
+    chomp($boothostname);
+
+    my @motd;
+    open MOTD, "/mnt/etc/motd" or die "/mnt/etc/motd!: $!";
+    while (<MOTD>) {
+        if (/^managed-by:/) {
+            $_ =
+"managed-by: cluster-admin via pain -> $boothostname -> $hostname\n";
+        }
+        push @motd, $_;
+    }
+    close MOTD;
+
+    open MOTD, ">", "/mnt/etc/motd" or die "/mnt/etc/motd!: $!";
+    print MOTD $_ for @motd;
+    close MOTD;
+}
+
+sub get_tw_controllers {
+    local $_;
+    $_ = `tw_cli info` or do {
+        print "DEBUG: Can't execute tw_cli info: $!\n";
+        return;
+    };
+    my @result = /^c(\d+)\s/mg or do {
+        print "DEBUG: Can't parse tw_cli output: $_\n";
+        return;
+    };
+    return @result;
+}
+
+sub configure_jbod {
+    my $controller = shift;
+    local $_;
+    $twfw = `lsmod`;
+    if ( $twfw =~ /3w-9xxx/ ) {
+        $jbod = "single";
+    } else {
+        $jbod = "jbod";
+    }
+
+    # delete all units
+    $_ = `tw_cli info c$controller`;
+    my @units = /^u(\d+)\s/gm;
+    for my $unit (@units) {
+        system("tw_cli maint deleteunit c$controller u$unit");
+    }
+
+    # delete all ports
+    $_ = `tw_cli info c$controller`;
+    my @ports = /^p(\d+)\s+/mg; 
+    for my $port (@ports) {
+        system("tw_cli maint remove c$controller p$port");
+    }
+    system("tw_cli maint flush c$controller");
+    system("tw_cli maint rescan c$controller");
+    for my $port (@ports) {
+        system("tw_cli maint createunit c$controller r$jbod p$port");
+    }
+}
+
+# Run some burnin tests if burnin and force are both set
+sub burnin {
+    if ( $hostrecord{burnin} and $hostrecord{force} ) {
+        display("Running burn in tests...\n");
+    }
+    else {
+        return;
+    }
+
+    configure_jbod($_) for get_tw_controllers();
+    zapsector();
+}
+
+sub System {
+    my $cmd = shift;
+    print "Running: [$cmd]\n";
+    system($cmd);
+    if ( $? != 0 ) {
+        print "ERROR: Exit code $?\n";
+    }
+    return $?;
+}
+
+sub this_is_an_hp_box {
+    my @tmpdisks = get_disks();
+    @tmpdisks = sort @tmpdisks;
+    return $tmpdisks[0] eq "cciss/c0d0";
+}
+
+sub do_hpraid_config {
+    local $_;
+    $_ = `printf "show volumes;\nshow disks;\n"|acu -d /dev/cciss/c0d0`;
+    my @volumes = /^create volume (\d+)/mg;
+    my $disks = $1 if m{^//\s+(b\d+t\d+.*)$}m;
+    print STDERR "DEBUG: volumes @volumes\n";
+    print STDERR "DEBUG: disks $disks\n";
+
+    unless ($disks) {
+        print "Can't find disks!\n";
+        system('sh');
+        die("rebooting\n");
+    }
+
+    my @disks = split( /,\s*/, $disks );
+    if ( @disks != $hostrecord{disks} ) {
+        figlet("Disk errors");
+        printf(
+"I was expecting %d disks in this HP array, but I found %d (%s) instead.\n",
+    $hostrecord{disks}, scalar @disks, join(",", @disks));
+        needs_siteops_fix();
+    }
+
+    open my $acu, "|acu -d /dev/cciss/c0d0" or die "acu: $!";
+
+    if (@volumes) {
+        print $acu "destroy volumes ", join( ",", @volumes ), ";\n";
+        print STDERR "destroy volumes ", join( ",", @volumes ), ";\n";
+        sleep 5;
+    }
+
+    my $cmd;
+    my $hwraid = $hostrecord{hwraid};
+
+    if ( $hwraid eq "JBOD" ) {
+        $cmd = "";
+        my $i = 0;
+        for (@disks) {
+            $cmd .=
+                "create volume $i { disks ( $_ ) \n\t "
+              . "redundancy = RAID0 };\n";
+            $i++;
+        }
+    }
+    else {
+        $cmd =
+          sprintf(
+            "create volume 0 { " . "disks ( %s )\n\t redundancy = %s };\n",
+            join( ",", @disks ), $hwraid );
+    }
+
+    print "Running $cmd";
+    print $acu $cmd;
+    close $acu;
+    $hostrecord{disks} = 1 unless $hwraid eq "JBOD";
+    system("sync;sync");
+    sleep 5;
+    system("cat /proc/partitions");
+}
+
+sub this_is_an_adaptec_sata_box {
+    return -d "/proc/scsi/aacraid";
+}
+
+sub write_file {
+    my ($file, $content) = @_;
+    open my $fh, ">$file" or die "$file: $!";
+    print $fh $content;
+    close $fh;
+}
+
+sub adaptec_send_cmds {
+    my $cmds = shift;
+    write_file("/tmp/cmds.aac", 
+	       sprintf("%s\n%s\n%s\n", 'logfile start "/tmp/cmds.log"',
+		       $cmds, 'logfile end'));
+    system('aaccli @/tmp/cmds.aac');
+    open my $fh, "</tmp/cmds.log" or die "/tmp/cmds.log: $!";
+    return $fh;
+}
+
+sub get_adaptec_controller {
+    # Open the controller
+    my $fh = adaptec_send_cmds("controller list");
+    my $controller;
+    while (<$fh>) {
+	next unless /^([a-z]\w+)\s/;
+	$controller = $1;
+	last;
+    }
+    close $fh;
+    unless ($controller) {
+	figlet("Controller?");
+	system("/bin/sh");
+    }
+    return $controller;
+}
+
+sub adaptec_delete_all_volumes {
+    my $controller = shift;
+    my $cmds = <<"EOT";
+open $controller
+container list
+EOT
+    my $fh = adaptec_send_cmds($cmds);
+    my @containers;
+    while (<$fh>) {
+	next unless /^\s*(\d+)/;
+	push @containers, $1;
+    }
+    close $fh;
+
+    $cmds = "open $controller\n";
+    $cmds .= join("", map { "container delete $_\n" } @containers);
+    adaptec_send_cmds($cmds);
+}
+
+sub adaptec_get_disks {
+    my $controller = shift;
+    my $cmds = <<"EOT";
+open $controller
+disk list
+EOT
+    my $fh = adaptec_send_cmds($cmds);
+    my @disks;
+    while (<$fh>) {
+	next unless /^\d+:(\d+):\d+/;
+	push @disks, $1;
+    }
+    close $fh;
+    return @disks;
+}
+
+sub do_adaptec_sata_config {
+    my $hwraid = $hostrecord{hwraid};
+    my $controller = get_adaptec_controller();
+    my $cmds = "open $controller\n";
+    
+    if ( $hwraid eq "JBOD" ) {
+	adaptec_delete_all_volumes($controller);
+	my @disks = adaptec_get_disks($controller);
+	$cmds .= join("", map { "container create volume $_\n" } @disks);
+    }
+    else {
+	my @volumes = split(';', $hwraid);
+	$cmds .= join("", map { "container create $_\n" } @volumes);
+    }
+    adaptec_send_cmds($cmds);
+}
+
+sub do_hwraid_config {
+    local $_;
+
+    my $hwraid = $hostrecord{hwraid};
+    return unless $hwraid;
+
+    if ( this_is_an_hp_box() ) {
+        do_hpraid_config();
+        return;
+    } elsif (this_is_an_adaptec_sata_box()) {
+	do_adaptec_sata_config();
+	return;
+    }
+
+    my @hwraid = split( ';', $hwraid );
+    my @controllers = get_tw_controllers();
+    return unless @controllers;
+
+  CONTROLLER:
+    for ( my $i = 0 ; $i < @controllers ; $i++ ) {
+        if ( uc( $hwraid[$i] ) eq "JBOD" ) {
+            configure_jbod( $controllers[$i] );
+            next CONTROLLER;
+        }
+
+        my $controller = $controllers[$i];
+        my $cmd        = "tw_cli info c$controller";
+        print "Running: $cmd\n";
+        $_ = `$cmd`;
+        my @units = /^u(\d+)\s/gm;
+        for my $unit (@units) {
+            System("tw_cli maint deleteunit c$controller u$unit");
+        }
+
+        System("tw_cli maint flush c$controller");
+        System("tw_cli maint rescan c$controller");
+        $hwraid = $hwraid[$i];
+        my $spare = ( $hwraid =~ /SPARES:(\d+)/ )[0];
+        $hwraid =~ s/SPARES:\d+//;
+        $cmd = "tw_cli maint createunit c$controller $hwraid";
+        System($cmd);
+
+        # TODO: Do something with spares
+        $_ = `tw_cli info c$controller`;
+        my @free_ports = /^p(\d+)\s+OK\s+-/mg; 
+
+        $spare = 0 unless defined($spare);
+        for ( 1 .. $spare ) {
+            my $port = $free_ports[ $_ - 1 ];
+            System("tw_cli maint remove c$controller p$port");
+        }
+        system("tw_cli maint rescan c$controller");
+
+        for ( 1 .. $spare ) {
+            my $port = $free_ports[ $_ - 1 ];
+            System("tw_cli maint createunit c$controller rspare p$port");
+        }
+    }
+    for $controller (@controllers) {
+        system("tw_cli maint rescan c$controller");
+    }
+    system("sync;sync;sleep 1");
+}
+
+# Load the right kernel
+sub install_kernel {
+    system(
+"chroot /mnt sh -c 'apt-get -q update;apt-get -q -y install $kernel_package'"
+    );
+    if ( $? ne 0 ) {
+        print "kernel failed to load.\n";
+    }
+
+    if ( $hostrecord{def_fs} eq "xfs" ) {
+        system("chroot /mnt apt-get -q -y install xfsprogs");
+    }
+    run_local(qw{chroot /mnt /sbin/lilo});
+}
+
+sub ntpdate {
+    my $ip = $environ{myip};
+    my $server;
+
+    if ( $ip =~ /^66\.196\.(?:100|97)/ ) {
+        $server = "66.196.97.175";    # ntpva1
+    }
+    elsif ( $ip =~ /^(?:209\.131|216\.155)/ ) {
+        $server = "209.131.48.11";    # fc-ntp1
+    }
+    else {
+        $server = "66.196.81.119";    # ntpsc1
+    }
+
+    # screw it.  Ask the boot host instead.
+    $server = $environ{"boothost"};
+    run_local( "/usr/sbin/ntpdate", "-b", $server );
+    run_local("/bin/date");
+    run_local( "/sbin/hwclock", "--systohc" );
+}
+
+sub get_disks {
+    my ( $major, $minor, $name, @results );
+    open P, "<", "/proc/partitions" or die "/proc/partitions: $!";
+    my $header = <P>;                 # discard header
+    while (<P>) {
+        chomp;
+        next unless $_;
+        ( $major, $minor, undef, $name ) = split;
+        next unless $minor % 16 == 0;
+        push @results, $name;
+    }
+    close P;
+
+    unless (@results) {
+        display("didnt find any disks - IDE/SCSI driver Ok?\n");
+    }
+    return @results;
+}
+
+{
+    my $pcpus;
+    sub get_physical_cpus {
+        return $pcpus if defined $pcpus;
+
+        local $_ = safe_dmidecode();
+
+        # get the Version: string after a DMI type 4
+
+        my @versions =
+          map { s/\s+$//; $_ }
+          /^Handle \s+ \w+ \s+  # Handle #
+            DMI \s type \s 4      # We're only interested in DMI type 4
+            .*?                   # and let's skip things we don't care about
+            \s+ Version: \s       # now we're near the good stuff
+            ([^\n]+)              # our version
+            /gsmx;
+
+        my %cpus;
+        my $total_cpus = 0;
+        for (@versions) {
+            next if /^0+$/;
+            next if /^\s*$/;
+            $cpus{$_}++;
+            $total_cpus++;
+        }
+
+        while ( my ( $cpu, $count ) = each(%cpus) ) {
+            print "DEBUG: Found $count x $cpu\n";
+        }
+
+        return $pcpus = $total_cpus;
+    }
+}
+
+{
+    my $lcpus;
+    sub get_logical_cpus {
+        return $lcpus if defined $lcpus;
+
+        open my $cpuinfo, "<", "/proc/cpuinfo" or die "/proc/cpuinfo: $!";
+        my $result = grep { /processor\s+:\s*\d+\s*$/ } <$cpuinfo>;
+        close $cpuinfo;
+
+        return $lcpus = $result;
+    }
+}
+
+sub needs_siteops_fix {
+    print "\nFeel free to reboot/power cycle this machine"
+      . " to correct the problems found.\n";
+    system("/bin/sh");
+    exit(1);
+}
+
+sub count_cpus {
+    my $should_have = $hostrecord{cpus};
+    return if $should_have eq "*";
+    my $have = get_physical_cpus();
+    unless ($have) {
+        print "WARNING: Couldn't count physical cpus! Ignoring check\n";
+        return;
+    }
+
+    if ( $should_have != $have ) {
+        if ( $should_have > $have ) {
+            figlet("Missing CPU");
+            print(  "ERROR: This host should have $should_have "
+                  . "CPUs but it has $have instead.\n" );
+            set_status("ERROR  --cpu=${have}/$should_have");
+            needs_siteops_fix();
+        }
+        else {
+            displaybold( "WARNING: I was expecting $should_have CPUs,"
+                  . "but I have $have instead!\n" );
+        }
+    }
+    else {
+        print "Number of CPUs detected is OK ($have)\n";
+    }
+}
+
+sub check_hyperthreading {
+    my $ht = lc( $hostrecord{hyperthreading} );
+    return if $ht eq "*";
+
+    $ht = ( $ht eq "enabled" ) || ( $ht eq "on" ) || ( $ht eq "yes" );
+    my $logical_cpus  = get_logical_cpus();
+    my $physical_cpus = get_physical_cpus();
+
+    my $error                 = 0;
+    my $expected_logical_cpus = ( 1 + $ht ) * $physical_cpus;
+    if ( $logical_cpus < $expected_logical_cpus ) {
+        figlet("Enable Hyperthreading");
+        print(  "This host does not have hyperthreading enabled,\n"
+              . "which is required for this config\n" );
+        set_status("ERROR  please enable hyperthreading");
+        $error = 1;
+    }
+    elsif ( $logical_cpus > $expected_logical_cpus ) {
+        figlet("Disable Hyperthreading");
+        print(  "This host has hyperthreading enabled, "
+              . "but it should be disabled for this config.\n" );
+        set_status("ERROR  please disable hyperthreading");
+        $error = 1;
+    }
+    else {
+        print "Hyperthreading settings OK\n";
+    }
+
+    needs_siteops_fix() if $error;
+}
+
+sub get_mem {
+    open my $mem, "<", "/proc/meminfo" or die "meminfo: $!";
+    my $header = <$mem>;    # discard
+    my $memory = <$mem>;
+    close $mem;
+
+    $memory =~ s/Mem:\s+(\d+).*$/$1/;
+    $memory /= 1024 * 1024 * 1024.0;
+    return sprintf( "%.0fG", $memory );
+}
+
+sub check_memory {
+    my $have        = get_mem();
+    my $should_have = $hostrecord{memory};
+
+    if ( $have lt $should_have ) {
+        figlet("Memory: $have");
+        print(  "This host should have $should_have of RAM, "
+              . "but it only has $have.\n" );
+        set_status("ERROR  --memory=$have/$should_have");
+        needs_siteops_fix();
+    }
+    elsif ( $have gt $should_have ) {
+        displaybold( "Warning: Was expecting only $should_have, "
+              . "but this machine has $have of RAM.\n" );
+        sleep(1);
+    }
+    else {
+        print "Memory: OK ($have)\n";
+    }
+}
+
+sub read_file {
+    local $/;
+    my $filename = shift;
+    open my $fh, "<$filename" or die "Can't open /proc/pci: $!";
+    my $results = <$fh>;
+    close $fh;
+    return $results;
+}
+
+sub load_disk_drivers {
+    my $pci = read_file("/proc/pci");
+    if ( $pci =~ /RAID bus controller:.*MegaRAID/i ) {
+        print "Loading megaraid module...";
+        system("modprobe -v megaraid");
+    } 
+    if ($pci =~ /Symbios Logic 53c1\d\d\d/) {
+        system("modprobe -v mptscsih_20511");
+        system("sfdisk -l >/dev/null 2>/dev/null"); # load the modules
+    }
+    if ($pci =~ /IDE.*nVidia/) { system("modprobe -v sata_nv"); }
+    if ($pci =~ /3ware ATA-RAID/) {
+        system("modprobe -v 3w-9xxx 2>/dev/null");
+    }
+    if ($pci =~ /3ware 7000/) {
+        system("modprobe -v 3w-xxxx 2>/dev/null");
+    }
+    # for the dell 1435 in IN2 (inadmin1/2 are examples)
+    if ($pci =~ /BCM5785.*PATA/) {
+        system("modprobe -v sata_svw 2>/dev/null");
+    }
+        
+    system("modprobe mptscsih 2>/dev/null");
+    system("modprobe sata_sil 2>/dev/null");
+    system("modprobe sd_mod 2>/dev/null");
+}
+
+sub count_drives {
+
+    # check for @disks
+
+    # On HW raid systems, do burnin, then build the raid.
+    # Otherwise, burnin is defered to the end of count_drives().
+    if ( $hostrecord{hwraid} ne "no" && $hostrecord{force} ) {
+        run_steps("burnin");
+        do_hwraid_config();
+    }
+
+    my @tmpdisks = ( 'sda' .. 'sdz' );
+    splice( @tmpdisks, $hostrecord{disks} );
+    my $idedisks = $hostrecord{idedisks};
+    if ( $idedisks =~ /^\d/ ) {
+        splice( @idedisks, $idedisks );
+        @tmpdisks = ( @idedisks, @tmpdisks );
+    }
+    my $disks = join( " ", sort @tmpdisks ); # disks set by js
+    display("Checking for disks $disks \r\n");
+    @tmpdisks = get_disks();
+    @tmpdisks = sort @tmpdisks;
+    if ( $tmpdisks[0] eq "cciss/c0d0" ) {
+
+        # change sda to cciss/c0d0, etc.
+        $disks = scsi_to_hpsmartarray($disks);
+        display("Using HP Smart Array logical units.\n");
+        $hpsmartarray = 1;
+        mkdir "/tmp/cciss", 0777;    # for sfdisk
+    }
+
+    # Quick and ugly hack to ignore 
+    if ($idedisks eq '*') {
+	@tmpdisks = grep { !/^hd[a-z]$/ } @tmpdisks;
+    }
+    my $run = join( " ", @tmpdisks ); # disks found on this machine
+    display("Found disks $run\n");
+
+    # Ignore the order of hd# disks
+    s/hd[a-z]/hd/g for ( $disks, $run );
+
+    unless ( $disks eq $run ) {
+        my $status = "ERROR: disk mismatch; want $disks; found $run";
+        my $hwraid = $hostrecord{hwraid};
+        if ($hwraid) {
+            if ( !this_is_an_hp_box() ) {
+                foreach my $c ( 0 .. 2 ) {
+                    my $cmdl =
+                      "tw_cli info c$c | egrep '(Model|FW|BIOS|NOT PRESENT)'";
+                    my $r = `$cmdl`;
+                    if ( $r =~ m/NOT PRESENT/ ) {
+                        print "% $cmdl\n$r";
+                        my @r = grep( /NOT PRESENT/, split( /\n/, $r ) );
+                        foreach (@r) {
+                            $status .= "; Replace c$c port $_";
+                        }
+                    }
+                }
+            }
+        }
+        figlet("Disk errors");
+        if ( $hostrecord{disks} ) {
+
+            # SCSI Drives
+            print "Output of /proc/scsi/scsi:\n";
+            system("cat /proc/scsi/scsi");
+
+            my $scsi = `cat /proc/scsi/scsi`;
+            my @id = ($scsi =~ /Id: (\d+) /g);
+            if (@id) {
+               $status .= "; Have scsi id(s) @id";
+            }
+
+        }
+
+        print(
+"\nThe number of disks found doesn't match what we were expecting. We were expecting \"$disks\", but we found \"$run\" instead.\n"
+        );
+
+        set_status($status);
+
+        needs_siteops_fix();
+    }
+    @disks = @tmpdisks;
+
+    # Recipricol to top of count_drives - 
+    # Do burnin() if we're not raid.
+    if ( $hostrecord{hwraid} eq "no" && $hostrecord{force} ) {
+        run_steps("burnin");
+    }
+
+
+}
+
+sub scsi_to_hpsmartarray {
+    my $disks = shift;
+    $disks =~ s{sd([a-z])}{"cciss/c0d" . (ord($1) - ord("a"))}ge;
+    return $disks;
+}
+
+sub badblocks {
+    if ( $hostrecord{badblocks} ) {
+        my @badblocks = qw{/sbin/badblocks -b 4096 -w -v};
+        display("Running badblocks\n");
+        for my $disk (@disks) {
+            run_local( @badblocks, "/dev/$disk" );
+        }
+    }
+    else {
+        display("Skipping badblocks - use --badblocks if you want badblocks\n");
+    }
+}
+
+sub partition_drives {
+
+# $diskconfig  contains the disk configuration to feed to the partitioning doohickey
+    display("writing config file /tmp/diskconfig\n");
+    open( TMP, ">/tmp/diskconfig" )
+      || crapout("Failed to create /tmp/diskconfig : $!");
+    my $onoff = 0;
+    my %disks;
+
+    if ($hpsmartarray) {
+        %disks = map { scsi_to_hpsmartarray($_) => 1 } @disks;
+    }
+    else {
+        %disks = map { $_ => 1 } @disks;
+    }
+
+    my $default_filesystem = $hostrecord{def_fs} || "ext2";
+    foreach (@diskconfig) {
+        chomp;
+        if (/disk_config (\S+)\s*$/) {
+            my $disk_name = $1;
+            $disk_name = scsi_to_hpsmartarray($disk_name) if $hpsmartarray;
+            $onoff = defined $disks{$disk_name};
+        }
+        s/lazyformat// if $hostrecord{"force"};
+        s/,errors=remount-ro// if $default_filesystem eq "xfs";
+        $_ = scsi_to_hpsmartarray($_) if $hpsmartarray;
+        print TMP "$_\n" if ($onoff);
+    }
+    close TMP;
+
+    if ( $hostrecord{"rootonly"} ) {
+        display("this is a rootonly install - skipping setup_harddisks.\n");
+        return;
+    }
+
+    run_local(
+        "/INSTALL/setup_harddisks", "-f/tmp/diskconfig",
+        "-X",                       "-t$default_filesystem"
+    );
+    if ($?) {
+        system("sh");
+        return;
+    }
+    crapout("Failed to run setup_harddisks") if ($?);
+}
+
+sub get_partitions_for_swraid {
+    open PART, "/proc/partitions" or die "Can't open /proc/partitions: $!\n";
+    my ( @disks, @partitions );
+    my %types_of_disks = ( 'sd' => 0, 'hd' => 0, 'cciss' => 0 );
+
+    while (<PART>) {
+        my ( undef, $minor, $size, $name ) = split;
+        next unless defined $minor && $minor =~ /^\d+$/;
+        if ( $minor % 16 == 0 ) {
+            push @disks, $name;
+            for my $type ( keys %types_of_disks ) {
+                if ( $name =~ /^$type/ ) {
+                    $types_of_disks{$type}++;
+                }
+            }
+        }
+        else {
+            push @partitions, [ $name, $size ];
+        }
+    }
+    close PART;
+
+   # get the most popular type of disk, and use its big partitions for sw raid 0
+    my $most_popular = (
+        sort { $types_of_disks{$b} <=> $types_of_disks{$a} }
+          keys %types_of_disks
+    )[0];
+
+    print "* Most popular type of disk: $most_popular\n";
+    my @candidate_partitions =
+      grep { $_->[0] =~ /^$most_popular/o } @partitions;
+
+    my ( $prefix, $candidate_name, $candidate_size );
+    ( $candidate_name, $candidate_size ) = @{ shift @candidate_partitions };
+    ( $prefix = $candidate_name ) =~ s/\d+$//;
+
+    my @results;
+
+    for (@candidate_partitions) {
+        ( $name, $size ) = @{$_};
+        my $this_prefix = $name;
+        $this_prefix =~ s/\d+$//;
+
+        if ( $this_prefix eq $prefix ) {
+            if ( $size > $candidate_size ) {
+                $candidate_size = $size;
+                $candidate_name = $name;
+            }
+        }
+        else {
+            push @results, $candidate_name;
+            $prefix         = $this_prefix;
+            $candidate_name = $name;
+            $candidate_size = $size;
+        }
+    }
+    push @results, $candidate_name;
+    print "* Using partitions ", join( ",", @results ), "\n";
+
+    return @results;
+}
+
+sub get_partition_size {
+    my $part = shift;
+    # sfdisk -s only shows size in blocks, i'd rather have it in sectors
+    my $disk = "/dev/$part"; $disk =~ s/\d+$//;
+    my $sfdisk = `sfdisk -l -uS $disk | grep  $part`;
+    my $size = (split ' ', $sfdisk)[3];
+    return $size;
+}
+
+sub min {
+    my $min = shift;
+    $min = $_ < $min  ? $_ : $min for @_;
+    return $min;
+}
+
+sub repartition {
+    my ($part, $size) = @_;
+    print "DEBUG: repartitioning $part to $size sectors\n";
+    my $disk = "/dev/$part"; $disk =~ s/\d+$//;
+    my $swap_used = `grep $disk /proc/swaps`;
+    my ($swap_dev, $swap_prio) = (split(' ', $swap_used))[0,-1]; # -1 is priority
+    system("swapoff $swap_dev");
+
+    my $sfdisk = `sfdisk -d $disk`;
+    $sfdisk =~ s/($part : start=\s+\d+, size=\s*)\d+/$1$size/;
+
+    open my $sfdisk_pipe, "|sfdisk $disk" or die "sfdisk: $!";
+    print $sfdisk_pipe $sfdisk;
+    close $sfdisk_pipe;
+    system("swapon -p $swap_prio $swap_dev"); # restore
+}
+
+sub software_raid {
+    return unless $softwareraid;
+    if ( $hostrecord{"rootonly"} ) {
+        crapout(
+"rootonly install and software raid not supported - just too dangerous to make automatic"
+        );
+    }
+
+    $swraid_mountpoint = undef;
+    if ( $diskconfig[0] =~ /^# MD0: (\S+)/ ) {
+        $swraid_mountpoint = $1;
+        shift @diskconfig;
+    }
+
+    if ( $softwareraid eq "raid0" ) {
+        # find the right disks
+        my @partitions  = get_partitions_for_swraid();
+        my @part_sizes = map { get_partition_size($_) } @partitions;
+        my $min_size = min(@part_sizes);
+        for (my $i = 0; $i < @partitions; $i++) {
+            repartition($partitions[$i], $min_size) 
+                if $part_sizes[$i] != $min_size;
+        }
+        my $raid_config =
+          sprintf("raiddev\t/dev/md0\nraid-level\t0\nnr-raid-disks\t%d\n" . 
+          "chunk-size\t$raid_chunk_size\npersistent-superblock\t1\n" .
+          "nr-spare-disks\t0\n", scalar @partitions );
+        for ( my $i = 0 ; $i < @partitions ; $i++ ) {
+            $raid_config .= "\tdevice\t/dev/${partitions[$i]}\n";
+            $raid_config .= sprintf( "\traid-disk\t%d\n", $i );
+        }
+        open FH, ">/tmp/soft-raid.cfg" or die "soft-raid.cfg: $!";
+        print FH $raid_config;
+        close FH;
+        run_local(
+            qw{/sbin/mkraid --really-force --configfile /tmp/soft-raid.cfg /dev/md0}
+        );
+
+        my $swidth = @partitions * 256;
+        if ( $hostrecord{def_fs} eq "xfs" ) {
+            run_local(
+                "/sbin/mkfs.xfs",   "-f",
+                "-dswidth=$swidth", "-dsunit=256",
+                "/dev/md0"
+            );
+        }
+        elsif ( $hostrecord{def_fs} eq "ext3" ) {
+            run_local('mkfs.ext2 -j -m1 -O "^filetype,sparse_super" /dev/md0');
+        }
+        else {
+            run_local('mkfs.ext2 -m1 -O "^filetype,sparse_super" /dev/md0');
+        }
+
+        return;
+    }
+
+    if ( $softwareraid eq "raid1" ) {
+        figlet("attempting raid1");
+
+        # find the right disks
+        @partitions  = get_partitions_for_swraid();
+        $raid_config =
+          sprintf(
+"raiddev\t/dev/md0\nraid-level\t1\nnr-raid-disks\t%d\nchunk-size\t$raid_chunk_size\npersistent-superblock\t1\nnr-spare-disks\t0\n",
+            scalar @partitions );
+        for ( $i = 0 ; $i < @partitions ; $i++ ) {
+            $raid_config .= "\tdevice\t/dev/${partitions[$i]}\n";
+            $raid_config .= sprintf( "\traid-disk\t%d\n", $i );
+        }
+        open FH, ">/tmp/soft-raid.cfg" or die "soft-raid.cfg: $!";
+        print FH $raid_config;
+        close FH;
+        run_local(
+            qw{/sbin/mkraid --really-force --configfile /tmp/soft-raid.cfg /dev/md0}
+        );
+
+        if ( $hostrecord{def_fs} eq "xfs" ) {
+            run_local(
+                "/sbin/mkfs.xfs", "-f",
+                "-dswidth=512",   "-dsunit=256",
+                "/dev/md0"
+            );
+        }
+        elsif ( $hostrecord{def_fs} eq "ext3" ) {
+            run_local('mkfs.ext2 -j -m0 -O "^filetype,sparse_super" /dev/md0');
+        }
+        else {
+            run_local('mkfs.ext2 -m0 -O "^filetype,sparse_super" /dev/md0');
+        }
+
+        return;
+    }
+
+    if ( $softwareraid ne "raid5" ) {
+        crapout("software-raid set to $softwareraid: don't know what to do.");
+    }
+
+    my @soft_disks =
+      qw(sda2 sdb2 sdc2 sdd2 sde2 sdf2 sdg2 sdh2 sdi2 sdj2 sdk2 sdl2);
+    splice @soft_disks, scalar @disks;
+    $raid_config =
+      sprintf(
+"raiddev\t/dev/md0\nraid-level\t5\nnr-raid-disks\t%d\nchunk-size\t64k\npersistent-superblock\t1\nnr-spare-disks\t0\n",
+        scalar @soft_disks );
+    for ( $i = 0 ; $i < @soft_disks ; $i++ ) {
+        $raid_config .= "\tdevice\t/dev/$soft_disks[$i]\n";
+        $raid_config .= "\traid-disk\t$i\n";
+    }
+    open FH, ">/tmp/soft-raid.cfg" or die "Cant create soft-raid.cfg: $!";
+    print FH $raid_config;
+    close FH;
+
+    system( "raidstart", "-c", "/tmp/soft-raid.cfg", "/dev/md0" );
+
+    my $raid_created = 0;
+    if ( $? == 0 ) {
+        if ( open MD, "/proc/mdstat" ) {
+            while (<MD>) {
+                next unless /^md0/;
+                print;
+                $raid_created = /\bactive\b/;
+                print "Raid created = $raid_created\n";
+                last;
+            }
+            close MD;
+        }
+        else {
+            warn "/proc/mdstat: $!";
+        }
+    }
+
+    # if force, then forget it
+    if ( $hostrecord{force} and $raid_created ) {
+        print
+"WARNING: /dev/md0 appeared to be valid, but recreating because of force\n";
+        $raid_created = 0;
+    }
+
+    unless ($raid_created) {
+        system( "raidstop", "-c", "/tmp/soft-raid.cfg", "/dev/md0" );
+        run_local(
+            qw{/sbin/mkraid --really-force --configfile /tmp/soft-raid.cfg /dev/md0}
+        );
+    }
+    sleep 5;
+
+    # try to mount /export/crawlspace
+    #
+    my $need_mkfs = 1;
+    unless ( $hostrecord{force} ) {
+        system( "mount", "/dev/md0", "/tmp" );
+        if ( $? == 0 ) {
+            print "COOL: Could mount /dev/md0, no need to mkfs\n";
+            $need_mkfs = 0;
+            system( "umount", "/tmp" );
+        }
+        sleep 2;
+    }
+
+    if ($need_mkfs) {
+        my $fs = $hostrecord{def_fs};
+        if ( $fs =~ /^ext[23]/ ) {
+            my $journal = $fs eq "ext3" ? "-j" : "";
+            my $cmd =
+"/sbin/mkfs.ext2 $journal -b 4096 -R stride=16 -i 131072 -m 0 /dev/md0";
+            run_local( split( ' ', $cmd ) );
+        }
+        elsif ( $fs eq "xfs" ) {
+            my $swidth = $raid_chunk_size * 3;
+            run_local(
+                split(
+                    ' ',
+"mkfs.xfs -f -dsunit=$raid_chunk_size -dswidth=$swidth /dev/md0"
+                )
+            );
+        }
+    }
+}
+
+sub image_root {
+    # $diskimage contains the url to a tarball
+    if ( $diskimage =~ m#(http://)([^/]+)(/.*)$# ) {
+        my ( $protocol, $boothost, $path ) = ( $1, $2, $3 );
+        my $fs         = $hostrecord{def_fs};
+        my $firstdrive = $disks[0];
+        $firstdrive .= "p" if $firstdrive =~ /\d$/;
+
+        if ( $hostrecord{"rootonly"} ) {
+            display("checking existing root image");
+            my $partsize = `fdisk  -u  -s /dev/${firstdrive}1` + 0;
+            if ( $partsize < 999000 ) {
+                crapout(
+"ERROR: Existing partition size is $partsize, needs to be >= 999000"
+                );
+            }
+            display("Existing root partition size is $partsize, good\n");
+            display("copying exising fstab by mounting old / read only\n");
+            run_local( "/bin/mount", "-o", "ro", "/dev/${firstdrive}1",
+                "/mnt" );
+            run_local( "/bin/cp", "/mnt/etc/fstab", "/tmp/fstab" );
+            run_local( "/bin/umount", "/mnt" );
+            display("Existing fstab:\n");
+            run_local( "/bin/cat", "/tmp/fstab" );
+        }
+
+        my $uncompress_cmd = "gzip -d";
+        if ( $path =~ /bz2$/ ) {
+            $uncompress_cmd = "bzip2 -d";
+        }
+
+        # Mount the root file system
+        system("mount -t $fs /dev/${firstdrive}1 /mnt");
+        die "Couldn't mount /dev/${firstdrive}1: ($?) $!" if $?;
+
+        my $tar_cmd = "(cd /mnt;tar xpSf -)";
+        if ($path =~ /cpio/) {
+            $tar_cmd = "(cd /mnt; cpio -i --sparse " .
+                "--make-directories --preserve-modification-time)";
+        }
+
+        my $cmd = <<EOF ;
+ifconfig eth0 mtu ${eth0_mtu}
+echo "GET $path" | nc $boothost 9999 | $uncompress_cmd | $tar_cmd
+EOF
+        run_local( "/bin/sh", "-c", $cmd );
+    }
+    else {
+        crapout('$diskimage not defined in profile');
+    }
+}
+
+sub mount_newroot {
+    display("Mounting /mnt (your new / partition) for read/write\n");
+
+    system(
+"killall syslogd; sync; modprobe -v xfs"
+    );
+
+    open( FSTAB, "</tmp/fstab" ) || die "Failed to open /tmp/fstab: $!";
+    while (<FSTAB>) {
+        chomp;
+        next if (/^#/);
+        my ( $device, $mountpoint, $type ) = split(/\s+/);
+        $device = scsi_to_hpsmartarray($device) if $hpsmartarray;
+        next unless ( $type =~ m/^(ext[23]|xfs)/ );
+        if ($mountpoint eq "/") {
+            if ($softwareraid) { last; } else { next; }
+        }
+        my $newmount = "/mnt" . $mountpoint;
+        system("mkdir -p $newmount");
+        run_local( "/bin/mount", "-o", "rw", "-t", $type, $device, $newmount );
+    }
+    close FSTAB;
+
+    system(
+"cat /etc/mtab|perl -ne 'm{/dev/ram} && next;s!mnt/!!;print'>/mnt/etc/mtab"
+    );
+    run_local("/bin/df");
+    unless ( -w "/mnt" ) {
+        crapout("Mounting /mnt as read-write failed - / is not writable");
+    }
+
+    if ($hostrecord{only_image} ) {
+        system("sh -i");
+        exit(1);
+    }
+}
+
+sub install_lilo {
+
+    # @liloconfig should be our new /etc/lilo.conf
+    open( TMP, ">/mnt/etc/lilo.conf" )
+      || crapout("Failed to create /mnt/etc/lilo.conf");
+    foreach (@liloconfig) {
+        chomp;
+        $_ = scsi_to_hpsmartarray($_) if $hpsmartarray;
+        print TMP "$_\n";
+    }
+    close TMP;
+}
+
+sub file_has {
+    my $filename = shift;
+    my $pattern  = shift;
+    my $result   = 0;
+    open my $fh, "<$filename" or die "$filename: $!";
+    while (<$fh>) {
+        if (/$pattern/o) {
+            print "MATCHED\n";
+            $result = 1;
+            last;
+        }
+    }
+    close $fh;
+    return $result;
+}
+
+sub fix_fstab {
+    if ($softwareraid) {
+        my $fs = $hostrecord{def_fs} || "ext2";
+        system(
+"grep -v /export /tmp/fstab | grep -v /local | grep -v /home>/tmp/fstab-fix"
+        );
+        system("mv -f /tmp/fstab-fix /tmp/fstab");
+
+        my $mount_point = $swraid_mountpoint;
+
+        unless ($mount_point) {
+            $mount_point = ( split( ' ', $diskconfig[2] ) )[1];
+            my $i = 2;
+            while ($mount_point eq "swap"
+                or $mount_point eq "-"
+                or $mount_point =~ /^\s*$/ )
+            {
+                $i++;
+                $mount_point = ( split( ' ', $diskconfig[$i] ) )[1];
+            }
+        }
+
+        system(
+            "echo '/dev/md0   $mount_point $fs    rw,noatime  0 0' >>/tmp/fstab"
+        );
+        system("mount -t $fs /dev/md0 /mnt/export/crawlspace");
+    }
+
+    my $home_mount_point = "/home";
+    if ( file_has( "/tmp/fstab", '\s/home\s' ) ) {
+        $home_mount_point = "/adminhome";
+        mkdir "/mnt/adminhost";
+    }
+    open( FSTAB, ">>/tmp/fstab" ) or die "Failed to cat >> /tmp/fstab : $!";
+    print FSTAB "adminhost:/export/home $home_mount_point nfs "
+      . "rsize=8192,wsize=8192,hard,intr,rw,noatime     0 0\n";
+    close FSTAB;
+    if ($softwareraid) {
+        run_local( "cp", "/tmp/soft-raid.cfg", "/mnt/etc/raidtab" );
+        run_local( "ln", "-s", "/etc/init.d/raid2", "/mnt/etc/rcS.d/S30raid2" );
+    }
+    if (-e "/mnt/etc/redhat-release") {
+        system('echo "none   /dev/pts devpts  gid=5,mode=620  0 0">>/tmp/fstab');
+        system('echo "none   /dev/shm tmpfs  defaults  0 0">>/tmp/fstab');
+    }
+
+    run_local( "cp",    "/tmp/fstab", "/mnt/etc/fstab" );
+    run_local( "cksum", "/tmp/fstab", "/mnt/etc/fstab" );
+}
+
+sub fix_etc {
+    display("Scanning $etcdir\n");
+
+    # /usr/bin/find  $etcdir
+    my @found = `find $etcdir -type f`;
+    foreach (@found) { chomp; }
+
+    my $ip10 = $environ{myip};
+    $ip10 =~ s/^\d+/10/;
+
+    display("Writing helper script\n");
+    my $d = `date`;
+    chomp $d;
+    open( PIE, ">>/tmp/perlpie" )
+      || crapout("Failed to create /tmp/perlpie : $!");
+
+    print PIE <<"EOF";
+#! /usr/bin/perl -pi
+ s/{{domain}}/inktomisearch.com/g;
+ s/{{hostname}}/$environ{hostname}/g;
+ s/{{ip}}/$environ{myip}/g;
+ s/{{ip10}}/$ip10/g;
+ s/{{myip}}/$environ{myip}/g;
+ s/{{boothost}}/$environ{boothost}/g;
+ s/{{gateway}}/$environ{gateway}/g;
+ s/{{netmask}}/$environ{netmask}/g;
+ s/{{date}}/$d/g;
+ s/{{Jump}}/$motd_tag/g;
+ s/{{jump}}/$motd_tag/g;
+ s/{{profile}}/$motd_tag/g;
+ s/{{base}}/$environ{base}/g;
+ s/{{broadcast}}/$environ{broadcast}/g;
+EOF
+    close PIE;
+    system( "/bin/chmod", "a+x", "/tmp/perlpie" );
+    system( "/tmp/perlpie", @found );
+    for my $etc ( split ' ', $etcdir ) {
+        system( "/bin/rsync", "-a", "$etc/.", "/mnt/etc/." );
+    }
+
+    # Fix /etc/modules.conf
+    system(
+"sed -e '/alias eth/d;/options eth/d;' /mnt/etc/modules.conf >/tmp/modules.conf"
+    );
+
+    my %eth;
+    # try something else
+    my @pci_net = grep { /Class 0200:/ } `lspci -n`;
+    chomp(@pci_net);
+    print "DEBUG: @pci_net\n";
+
+    my %pci_table = ( 
+        '8086:1000' => "e1000",
+        "8086:1001" => "e1000",
+        "8086:1004" => "e1000",
+        "8086:1008" => "e1000",
+        "8086:1009" => "e1000",
+        "8086:100c" => "e1000",
+        "8086:100d" => "e1000",
+        "8086:100e" => "e1000",
+        "8086:100f" => "e1000",
+        "8086:1010" => "e1000",
+        "8086:1011" => "e1000",
+        "8086:1012" => "e1000",
+        "8086:1013" => "e1000",
+        "8086:1015" => "e1000",
+        "8086:1016" => "e1000",
+        "8086:1017" => "e1000",
+        "8086:1019" => "e1000",
+        "8086:101d" => "e1000",
+        "8086:101e" => "e1000",
+        "8086:1079" => "e1000",
+        "8086:1076" => "e1000",
+        "8086:1002" => "eepro100",
+        "8086:1029" => "eepro100",
+        "8086:1030" => "eepro100",
+        "8086:1031" => "eepro100",
+        "8086:1032" => "eepro100",
+        "8086:1033" => "eepro100",
+        "8086:1034" => "eepro100",
+        "8086:1038" => "eepro100",
+        "8086:1039" => "eepro100",
+        "8086:103a" => "eepro100",
+        "8086:103b" => "eepro100",
+        "8086:103c" => "eepro100",
+        "8086:103d" => "eepro100",
+        "8086:103e" => "eepro100",
+        "8086:1050" => "eepro100",
+        "8086:1051" => "eepro100",
+        "8086:1059" => "eepro100",
+        "8086:1209" => "eepro100",
+        "8086:1229" => "eepro100",
+        "8086:2449" => "eepro100",
+        "8086:2459" => "eepro100",
+        "8086:245d" => "eepro100",
+        "1148:4400" => "tg3",
+        "14e4:1644" => "tg3",
+        "14e4:1645" => "tg3",
+        "14e4:1646" => "tg3",
+        "14e4:1647" => "tg3",
+        "14e4:1648" => "tg3",
+        "14e4:164d" => "tg3",
+        "14e4:1659" => "tg3",
+        "14e4:16a6" => "tg3",
+        "14e4:16a7" => "tg3",
+        "14e4:16a8" => "tg3",
+        "14e4:16c6" => "tg3",
+        "14e4:16c7" => "tg3",
+        "173b:03e8" => "tg3",
+        "173b:03ea" => "tg3");
+
+    my $cur_iface = 0;
+    for (@pci_net) {
+        my $pci_id = (split)[3];
+
+        if (exists $pci_table{$pci_id}) {
+            $eth{$cur_iface++} = $pci_table{$pci_id};
+        } else {
+            print "UNKNOWN network card: $pci_id\n";
+        }
+    }
+
+    my %net_mods = map { $_ => 1 } values %eth;
+    open MOD, ">/mnt/etc/modules" or die "modules: $!";
+
+    # write these in order
+    my %module_options = (
+        eepro100 => "",
+        e1000 => " RxIntDelay=0 XsumRX=0 RxDescriptors=1024 TxDescriptors=1024",
+        $tigon3_module => ""
+    );
+    # for the right order
+    for my $module ( ( 'eepro100', 'e1000', 'tg3') ) {
+        my $modname= ($module eq 'tg3') ? $tigon3_module : $module;
+        print MOD "$modname$module_options{$module}\n"
+          if $net_mods{$module};
+    }
+    close MOD;
+
+    open MODCONF, ">>/tmp/modules.conf" or die "modules.conf: $!";
+
+    for my $interface ( sort keys %eth ) {
+        print MODCONF "alias eth$interface $eth{$interface}\n";
+        my $options = $module_options{ $eth{$interface} };
+        if ($options) {
+            print MODCONF "options eth$interface $options\n";
+        }
+    }
+    close MODCONF;
+
+    system("cp /tmp/modules.conf /mnt/etc/modules.conf");
+    system("chroot /mnt /sbin/depmod -a");
+
+    unless ( -d "/mnt/etc/sysconfig" ) {
+
+        # Generate /etc/network/interfaces for non-rh boxes
+        #
+        open INT, ">/mnt/etc/network/interfaces"
+          or die "network/interfaces: $!";
+        print INT <<EOT;
+# /etc/network/interfaces -- configuration file for ifup(8), ifdown(8)
+
+# The loopback interface
+auto lo
+iface lo inet loopback
+
+EOT
+        my $primary_num = $primary_iface eq "eth0" ? 0 : 1;
+        print "DEBUG: INTERFACES: $primary_iface - $primary_num\n";
+
+        if ( $eth{$primary_num} ) {
+            print INT <<EOT;
+auto $primary_iface
+iface $primary_iface inet static
+    address $environ{myip}
+    netmask $environ{netmask}
+    network $environ{base}
+    broadcast $environ{broadcast}
+    gateway $environ{gateway}
+EOT
+            print INT "    up /usr/local/sbin/fix_eth0\n" if $eth0_mtu == 4500;
+            print INT "\n";
+        }
+
+        my ( $ethX, $ethX_mtu );
+        if ( $eth{1} && !$eth{2} ) {
+            $ethX     = "eth1";
+            $ethX_mtu = $eth1_mtu;
+        }
+        elsif ( $eth{2} ) {
+            $ethX     = "eth2";
+            $ethX_mtu = $eth2_mtu;
+        }
+
+        if ($ethX eq $primary_iface) {
+            $ethX = "eth0";
+        }
+        if ($ethX) {
+            print INT <<EOT;
+auto $ethX
+iface $ethX inet static
+    address $ip10
+    netmask 255.0.0.0
+    network 10.0.0.0
+    broadcast 10.255.255.255
+EOT
+            print INT "    up /sbin/ifconfig $ethX mtu 4500\n"
+              if $ethX_mtu == 4500;
+            print INT "\n";
+
+        }
+
+        close INT;
+    }
+
+    # Fix /etc/inittab for HP boxes
+    if ( this_is_an_hp_box() ) {
+        system('perl -pi -e "s/^T1:23/#T1:23/" /mnt/etc/inittab');
+    }
+}
+
+sub get_size {
+    my $file = shift;
+    my $size = ( stat($file) )[7];
+    return $size;
+}
+
+sub fix_resolv_conf {
+    system('cp /mnt/etc/resolv.conf /mnt/etc/resolv.conf-gem');
+    system("grep -v 'nameserver 127.0.0.1' " .
+	   "/mnt/etc/resolv.conf-gem>/etc/resolv.conf");
+    system("cp /etc/resolv.conf /mnt/etc/resolv.conf");
+}
+
+sub clear_resolvconf {
+    print "\nClearing out resolv.conf\n";
+    system("rm /mnt/etc/resolv.conf");
+    system("echo search inktomisearch.com inktomi.com yahoo.com corp.yahoo.com > /mnt/etc/resolv.conf");
+    system("cp /mnt/etc/resolv.conf /etc/resolv.conf");
+    print "resolv.conf now has:\n";
+    system("cat /etc/resolv.conf");
+    print "\n";
+}
+
+sub get_mounted_on {
+    my $dir = shift;
+    my @df = `cd /mnt/$dir;df -k .`;
+    my $mounted = (split ' ', $df[-1])[-1];
+    $mounted =~ s{^/mnt}{};
+    return $mounted eq "" ? "/" : $mounted;
+}
+
+sub check_fs_layout {
+    if ($enforce_yst_layout eq "yes") {
+        # Verify that /export/* directories are not mounted on /
+	print "* Verifying that the /export/* directories are not mounted on /\n";
+
+	my @fs = ('home', 'crawlspace0' .. 'crawlspace9');
+        my $ok = 0;
+        my $not_ok = 0;
+	chdir('/mnt/export') or do {
+	    figlet("No /export");
+	    system("/bin/sh");
+	};
+        unless (-e "crawlspace0") {
+            push @fs, "crawlspace";
+        }   
+
+	for my $fs (@fs) {
+	    next unless -d $fs; # only verify directories
+	    my $mounted_on = get_mounted_on("/export/$fs");
+            if ($mounted_on ne "/") {
+                $ok++;
+            } else {
+                $not_ok++;
+                print "WARNING: $fs mounted on /\n";
+            }
+	}
+	chdir("/");
+	print "\n";
+
+        my $scsi = $hostrecord{disks};
+        my $ide = $hostrecord{idedisks};
+        if ($not_ok == 0 and $ok > 0) {
+            print "INFO: Passes checks - /export/* file systems are OK\n";
+        } elsif ($ok == 0) {
+            print "ERROR: No big file systems found under /export/*\n";
+            print "       Fix the fs-layout or add enforce-yst-layout = no\n";
+            print "       to your jumpstart group definition\n";
+            print "\n\n";
+            system("/bin/sh");
+            die;
+        } elsif ($ok == 1 and $softwareraid) {
+            print "INFO: Passes checks - software raid and a big file system\n";
+        } elsif ($ok >= $scsi) {
+            print "INFO: Passes checks - $scsi scsi disks and $ok big /export file systems\n";
+        } elsif ($scsi == 0 and $ok >= $idedisks) {
+            print "INFO: Passes checks - $idedisks ide disks and $ok big /export file systems\n";
+        } else {
+            print "ERROR: Couldn't match this fs layout to an approved one.\n";
+            print "       Fix the fs-layout or add enforce-yst-layout = no\n";
+            print "       to your jumpstart group definition\n";
+            print "\n\n";
+            system("/bin/sh");
+            die;
+        }
+    }
+}
+
+sub install_gemstone {
+    unlink "/mnt/etc/securetty"; 
+
+    my $boothost = $environ{boothost};
+    system("echo 'nameserver $boothost\n' > /mnt/etc/resolv.conf");
+
+    my $cmd = "chroot /mnt /bin/sh -c " .
+      "'apt-get update; apt-get -y install gemclient'";
+    print "\% $cmd\n";
+    system($cmd);
+
+    system("chroot /mnt /usr/local/gemclient/bin/run -f all");
+    fix_resolv_conf();
+    fix_etc_hosts();
+
+    $cmd ="echo 'GET /jumpstart/skher.cgi' | nc boothost 9999 | " . 
+      "(cd /mnt/etc/ssh/ && tar xf -)";
+    print "\% $cmd\n";
+    system($cmd); optional_shell();
+
+    system("/usr/sbin/chroot /mnt /usr/local/gemclient/bin/run -f all" );
+    my $PATH=$ENV{PATH};
+    $ENV{PATH}="/sbin:/usr/sbin:$PATH";
+    system("chroot /mnt apt-get -y remove perl-awesomerange");
+    system("chroot /mnt apt-get -y install perl-awesomerange");
+    fix_resolv_conf();
+    display("done.\n");
+}
+
+sub remount_root {
+    display("Remounting / for read/write\n");
+    run_local( "mount", "-o", "remount", "-o", "rw", "/" );
+    unless ( -w "/" ) {
+        crapout("Remounting / as read-write failed - / is not writable");
+    }
+}
+
+sub fsck_newroot {
+    my $fs   = $hostrecord{def_fs};
+    my $root = $disks[0];
+    $root .= "p" if $disks[0] =~ /\d$/;
+    $root .= "1";
+
+    if ( $fs eq "ext2" or $fs eq "ext3" ) {
+        system("fsck -C -f -y /dev/$root");
+        if ($?) {
+            print "WARNING: fsck returned an error! - ignoring\n";
+        }
+    }
+}
+
+sub unmount_newroot {
+    print "INFO: Killing user processes:\n";
+    open my $ps, "ps -ef|" or die "ps: $!";
+    while (<$ps>) {
+        next if /^UID/; # header
+        my ($uid, $pid, $ppid, $c, $stime, $tty, $time, $cmd) = split;
+        next if $cmd =~ /^\[/; # OS command
+        next if $cmd =~ m{/bin/(sh|perl)};
+        push @pids_to_kill, $pid;
+        print "-> $_";
+    }
+    kill 15, @pids_to_kill;
+    sleep 1;
+    kill 9, @pids_to_kill;
+    sleep 1;
+
+    system("chroot /mnt umount /proc");
+    system("umount -a 2>/dev/null >/dev/null");
+    system("mount");
+}
+
+sub configure_nextboot {
+    display("Contacting web server to change next boot\n");
+    my $hostname=$environ{hostname};
+    my $cmd = qq(echo "GET /jumpstart/normalboot.cgi?hostname=$hostname" | nc boothost 9999);
+    run_local( "/bin/sh", "-c", $cmd );
+}
+
+sub bannerdone {
+    figlet("jumpstart done");
+}
+
+
+sub get_mtu_boothost {
+   my $server =  $environ{"boothost"};
+   my $cmd    = 'echo "GET /jumpstart/mtu.cgi" | nc boothost 9999';
+
+   print "# $cmd\n";
+   my $res    = `$cmd`;
+   print $res;
+
+  if ($res =~ m/MTU=(\d+)/i) {
+     my $mtu = $1;
+     if ((defined $eth0_mtu) && ($mtu != $eth0_mtu)) { 
+        displaybold(" WARNING: Changing eth0_mtu from $eth0_mtu to $mtu - to match the boothost\n");
+     }
+     system("ifconfig eth0 mtu $mtu");
+     $eth0_mtu = $mtu;
+  }
+  optional_shell();
+}
+
+run_steps(@installer_steps);
+1;
+

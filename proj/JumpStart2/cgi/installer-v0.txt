@@ -1,0 +1,21 @@
+#!/usr/bin/perl -w
+# -*- perl -*-
+
+sub generic_error {
+        figlet("GENERIC BANNER");
+        set_status(qq(jumpstart error: GENERIC BANNER));
+        displaybold(qq(ERROR: GENERIC DETAIL) . "\n");
+        system("/bin/sh");
+        die "rebooting";
+}
+
+sub needs_siteops_fix {
+    print "\nFeel free to reboot/power cycle this machine"
+      . " to correct the problems found.\n";
+    system("/bin/sh");
+     exit(1);
+}
+
+system("inetd");
+generic_error();
+needs_siteops_fix();

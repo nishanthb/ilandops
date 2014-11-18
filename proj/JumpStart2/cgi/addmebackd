@@ -1,0 +1,265 @@
+#! /usr/local/bin/perl
+use Socket;
+use IO::Socket;
+use CGI;
+use Seco::AwesomeRange qw(:common);
+use POSIX qw(setsid setuid);
+use YAML;
+use strict;
+
+eval '
+ use Sys::Syslog;
+ my $p = $0;  $p =~ s#.*/##;
+ openlog("$p\[$$]","","user");
+';
+warn $@ if $@;
+if ($@) {
+  eval ' sub syslog { } ; ';  # Create no-op.
+}
+
+syslog('notice','%s',"$0 started");
+
+$ENV{"PATH"} = "/bin:/usr/bin:/usr/local/bin:/sbin:/usr/sbin:/usr/local/sbin:/home/seco/tools/bin";
+
+my $WATCHDOG=60;
+
+# Verify that we don't have any others running
+# assigning 2363 ("ADME") 
+my $server = IO::Socket::INET->new(LocalPort => 2363, Proto => "udp");
+unless ($server) {
+  syslog('notice','%s','already running, exiting');
+  print "$0 already running, exiting\n";
+}
+
+
+my $QUEUE = "/JumpStart/var/addmeback.q";
+my $CONF = "/JumpStart/var/addmeback.seco";
+
+syslog('notice','%s',"Failed to locate $QUEUE") unless (-d $QUEUE);
+die "Failed to locate $QUEUE" unless (-d $QUEUE);
+
+system("mkdir","-p",$CONF) unless (-d $CONF);
+syslog('notice','%s',"Failed to mkdir $CONF") unless (-d $CONF);
+die "Failed to create $CONF" unless (-d $CONF);
+
+change_uid();
+daemonize() unless (-t STDIN && -t STDOUT);
+
+my $q = new CGI;
+close(STDERR); open(STDERR,">&STDOUT");
+select(STDERR); $|=1;
+select(STDOUT); $|=1;
+
+print "Content-type: text/plain\n\n";
+
+my $whoami = `whoami`; chomp $whoami;
+my $hostname = `hostname`; chomp $hostname;
+my $client = "addmeback.$whoami.$hostname";
+syslog('notice','%s',"WHOAMI=$whoami P4CLIENT=$client\n");
+
+
+p4_client();
+while(1) { 
+  run_queue();
+  sleep 10;
+};
+
+sub run_queue {
+  my @QUEUE = glob("$QUEUE/*");
+  my %queue;
+  print "QUEUE @QUEUE\n";
+  foreach (@QUEUE) {
+    my %data; 
+    open(Q,"<$_");
+    my @data = <Q>;
+    close Q;
+    foreach (@data) {
+     chomp;  
+     my($a,$b) = split(/: ?/,$_,2);
+     $data{$a}=$b;
+    }
+    my $cluster = $data{"cluster"};
+    my $name = $_;
+    $name =~ s#.*/##;
+    if (($name) && ($cluster)) {
+      push( @{  $queue{$cluster} }, $name);
+    }
+  }
+  unless (%queue) {
+     syslog("notice",'%s',"nothing in the queue, exiting");
+     print "Nothing in the queue, exiting.\n";
+     exit 0;
+  }
+  print "Queue to restore to cluster(s):\n";
+  print Dump(\%queue);
+  foreach my $cluster (keys %queue)  {
+     unexclude($cluster,@{ $queue{$cluster}});
+  }
+}
+
+sub unexclude {
+  my($cluster,@nodes) = @_;
+  p4_sync();
+  alarm($WATCHDOG);
+  print "Need to process cluster $cluster, unexcluding nodes @nodes\n";
+  syslog('notice','%s',"Need to process cluster $cluster, nodes @nodes");
+
+  my $cmd = "p4 -c $client sync $CONF/$cluster/nodes.cf";
+  doit($cmd);
+
+  $cmd =~ s/sync/edit/;
+  my $open = doit($cmd);
+
+  if ($open =~ /is already opened/) {
+    syslog('notice','%s',"can't touch this yet");
+    return;
+  }
+
+
+  if ($open =~ /also opened/) {
+    syslog('notice','%s',"Whoops - Better revert");
+    $cmd =~ s/edit/revert/;
+    doit($cmd);
+    return;
+  }
+ 
+  unless ($open =~ m/opened/) {
+    syslog('notice','%s',"FAILED to p4 edit  $CONF/$cluster/nodes.cf, skipping");
+    return;
+  }
+
+  unless (open(OLD,"<$CONF/$cluster/nodes.cf")) {
+    syslog('notice','%s',"FAILED to open for read $CONF/$cluster/nodes.cf, skipping\n");
+    $cmd =~ s/edit/revert/;
+    doit($cmd);
+    return;
+  }
+
+
+  unless(open(NEW,">$CONF/$cluster/.nodes.cf.$$")) {
+    syslog('notice','%s', "FAILED to create for write $CONF/$cluster/.nodes.cf.$$, skipping\n");
+    $cmd =~ s/edit/revert/;
+    doit($cmd);
+    return;
+  }
+  my $diffs=0;
+
+  while(<OLD>) {
+     if (/\bEXCLUDE\b(.*)/) {
+        my $rold = $1;
+        $rold =~ s/#.*$//;  # Remove comments
+        my $rold = compress_range(expand_range($rold));
+        my $expression = $rold. ",-{" . join(",",@nodes) . "}";
+  print "expression=$expression\n";
+        my $r = compress_range(expand_range($expression));
+        $diffs++ unless ($rold eq $r);
+print "r=$r rold=$rold diffs=$diffs\n";
+        if ($r) {
+ 		print NEW "\tEXCLUDE $r\n";
+        }
+     } else {
+        print NEW;
+     }
+  }
+  close OLD;
+  close NEW;
+
+  alarm($WATCHDOG);
+
+
+  unless ($diffs) {
+    syslog('notice','%s',"No changes - reverting");
+    unlink("$CONF/$cluster/.nodes.cf.$$"); 
+    $cmd =~ s/edit/revert/;
+    doit($cmd);
+    goto done;
+  }
+
+  system("mv","$CONF/$cluster/.nodes.cf.$$","$CONF/$cluster/nodes.cf");
+
+  alarm($WATCHDOG);
+
+  my  $cmdsub = "p4 -c $client  submit -d 'addmebackd automated submit' $CONF/$cluster/nodes.cf";
+  print "% $cmdsub";
+  my $out = doit($cmdsub);
+
+  unless ($out =~ m/submitted/) {
+    syslog('notice','%s',"FAILED to submit $CONF/$cluster/nodes.cf,  skipping");
+    $cmd =~ s/edit/revert/;
+    doit($cmd);
+    return;
+  }
+done:
+  foreach (@nodes) {
+    print "Unlinking $QUEUE/$_\n";
+    my $i = unlink("$QUEUE/$_")  or print "Failed to unlink : $!";
+  }
+
+  print "Notifying p4\n";
+  $cmd = "allmanateed.pl -F -t 10 -r '^{\%${cluster}:ALL},\%${cluster}:WATCHER' 'p4sync seco' 2>&1";
+  doit($cmd);
+  return;  
+}
+
+
+sub p4_client {
+
+  alarm($WATCHDOG);
+
+my $CLIENT = <<"EOF";
+Client: $client
+Description: addmeback daemon
+Root: $CONF
+Options: noallwrite noclobber nocompress unlocked nomodtime normdir
+LineEnd: local
+View:
+   //depot/manatee/%%1/tools/conf/nodes.cf //$client/%%1/nodes.cf
+EOF
+
+  open(P4,"|p4 -c $client client -i");
+  print P4 $CLIENT;
+  close P4;
+}
+
+
+
+sub p4_sync {
+  alarm($WATCHDOG);
+  print "Syncing perforce\n";
+  system("p4 -c $client sync");
+}
+
+
+
+sub change_uid {
+  my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,$atime,$mtime,$ctime,$blksize,$blocks) 
+  = stat($QUEUE);
+  return if ($< eq $uid);
+  die "Running as uiser $<, but want $uid" if ($<);
+  setuid($uid);
+}
+
+
+sub daemonize {
+     chdir '/'               or die "Can't chdir to /: $!";
+     open STDIN, '/dev/null' or die "Can't read /dev/null: $!";
+     open STDOUT, '>/dev/null'
+                             or die "Can't write to /dev/null: $!";
+     defined(my $pid = fork) or die "Can't fork: $!";
+     exit if $pid;
+     setsid                  or die "Can't start a new session: $!";
+     open STDERR, '>&STDOUT' or die "Can't dup stdout: $!";
+     syslog('notice','%s',"daemonized as pid $$");
+}
+
+
+
+sub doit {
+  my($cmd) = @_;
+  print "% $cmd\n";
+  syslog('notice','%s',"% $cmd");
+  my $out = `$cmd 2>&1`;
+  syslog('notice','%s',$out);
+  return $out;
+
+} 
