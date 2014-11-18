@@ -1,0 +1,33 @@
+$INCLUDE "jumpstart.cf"
+
+IBMTEST-CENTOS65
+    based-on = RHEL6,IBM_SERIAL0
+    cpus = *
+    enforce-yst-layout = no
+    hyperthreading = *
+    nfs-home = no
+    root-disk-img=centos65.tar.bz2
+    memory = 12.3G
+    motd-tag = ibm-systemx
+    gemclient-host = no
+    install-packages = nc;wget
+    after-install-command = echo InstallPackageComplate
+    scsi-disks = 1
+    INCLUDE js.rangestack.com
+
+
+IBMTEST-CENTOS65-DISK-2G
+    based-on = RHEL6,IBM_SERIAL0
+    fs-layout = one-scsi-lab.fs
+    cpus = *
+    enforce-yst-layout = no
+    hyperthreading = *
+    nfs-home = no
+    root-disk-img=centos65.tar.bz2
+    memory = 12.3G
+    motd-tag = ibm-systemx
+    gemclient-host = no
+    install-packages = nc;wget
+    after-install-command = echo InstallPackageComplate
+    scsi-disks = 1
+    INCLUDE tq9001.rangestack.com

@@ -1,0 +1,10 @@
+---
+js.rangestack.com:
+  gateways: 1
+  networks:
+    - 10.216.30.0/24
+#x201:
+#  gateways: 1
+#  networks:
+#    - 192.168.35.0/24
+
