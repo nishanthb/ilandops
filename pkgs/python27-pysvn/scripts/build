@@ -1,0 +1,13 @@
+#!/bin/sh
+
+$PYTHON ./setup.py build
+cd Source
+$PYTHON ./setup.py backport
+$PYTHON ./setup.py configure --apr-inc-dir=/usr/include/apr-1
+make
+mkdir -p $DESTDIR/usr/local/lib/python2.7/site-packages/pysvn
+cp pysvn/__init__.py $DESTDIR/usr/local/lib/python2.7/site-packages/pysvn
+cp pysvn/_pysvn_2_7.so $DESTDIR/usr/local/lib/python2.7/site-packages/pysvn
+cd ..
+$PYTHON ./setup.py install --root=$DESTDIR
+

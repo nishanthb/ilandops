@@ -1,0 +1,8 @@
+---
+default:
+  name: python27-smmap
+  pypi: smmap
+  python: /usr/local/bin/python
+  summary: "python27 smmap"
+  version: 0.8.3
+  release: 1

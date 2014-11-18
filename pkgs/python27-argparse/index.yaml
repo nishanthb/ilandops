@@ -1,0 +1,8 @@
+---
+default:
+  name: python27-argparse
+  pypi: argparse
+  python: /usr/local/bin/python
+  summary: "python27 argparse"
+  version: 1.2.1
+  release: 1

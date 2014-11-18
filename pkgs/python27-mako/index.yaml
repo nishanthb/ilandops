@@ -1,0 +1,8 @@
+---
+default:
+  name: python27-mako
+  pypi: Mako
+  python: /usr/local/bin/python
+  summary: "python27 mako"
+  version: 1.0.0
+  release: 1

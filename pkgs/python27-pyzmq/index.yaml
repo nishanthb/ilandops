@@ -1,0 +1,13 @@
+---
+default:
+  name: python27-pyzmq
+  pypi: pyzmq
+  python: /usr/local/bin/python
+  summary: "python27 pyzmq"
+  version: 14.4.1
+  release: 1
+  buildrequires:
+     - zeromq3
+     - zeromq3-devel
+
+

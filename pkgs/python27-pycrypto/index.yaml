@@ -1,0 +1,8 @@
+---
+default:
+  name: python27-pycrypto
+  pypi: pycrypto
+  python: /usr/local/bin/python
+  summary: "python27 pip"
+  version: 2.3
+  release: 1

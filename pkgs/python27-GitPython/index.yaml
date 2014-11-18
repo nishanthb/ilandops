@@ -1,0 +1,10 @@
+---
+default:
+  name: python27-GitPython
+  pypi: GitPython
+  python: /usr/local/bin/python
+  summary: "python27 GitPython"
+  version: 0.3.2.RC1
+  release: 1
+  requires:
+    - python27-gitdb

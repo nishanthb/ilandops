@@ -1,0 +1,13 @@
+---
+default:
+  name: python27-pysvn
+  summary: python27 pysvn
+#  sourcetar: pysvn-1.7.8.tar.gz
+  http: http://pysvn.barrys-emacs.org/source_kits/pysvn-1.7.8.tar.gz
+  version: '1.7.8'
+  python: /usr/local/bin/python
+  release: 1
+x86_64:
+ nobuild: 1
+ preferarch: i386
+
