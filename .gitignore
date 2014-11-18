@@ -20,3 +20,7 @@ proj/JumpStart2/out/profiles/*
 proj/JumpStart2/state/*
 !proj/JumpStart2/states/.takeposition
 
+proj/JumpStart2/var/*
+!proj/JumpStart2/var/.takeposition
+
+
