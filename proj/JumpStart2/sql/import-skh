@@ -1,0 +1,61 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings 'all';
+use DBI;
+
+my $dbh = DBI->connect(
+    'DBI:Pg:dbname=skh',
+    'js',
+    'foobar',
+    { AutoCommit => 0 }) or die;
+
+my $dir = "/usr/local/jumpstart/skh";
+my $ins = "INSERT INTO skh (node,rsa,dsa) VALUES (?,?,?)";
+my $ins_sth = $dbh->prepare($ins);
+my $sel = "SELECT count(*) FROM skh WHERE node=?";
+my $sel_sth = $dbh->prepare($sel);
+
+chdir($dir) or die "$dir: $!";
+my @dirs = glob("*");
+my ($processed, $added) = (0, 0);
+for my $dir (@dirs) {
+    print STDERR "Processing dir: $dir...";
+    my @hosts = glob("$dir/*");
+    for my $host (@hosts) {
+        $processed++;
+
+        $sel_sth->execute($host);
+        my ($count) = $sel_sth->fetchrow_array;
+        next if $count == 1;
+
+        if (++$added % 100 == 0) {
+            print STDERR "\rProcessing dir: $dir... $processed ($added)";
+            $dbh->commit;
+        }
+        my $rsa = read_file("$host/ssh_host_rsa_key.pub");
+        my $dsa = read_file("$host/ssh_host_dsa_key.pub");
+        next unless $rsa and $dsa;
+
+        my $node = $host; $node =~ s(^.*/)();
+        $ins_sth->execute($node, $rsa, $dsa);
+    }
+    print STDERR "\rProcessing dir: $dir... $processed ($added)\n";
+    $dbh->commit if $added;
+}
+
+$ins_sth->finish;
+$sel_sth->finish;
+$dbh->disconnect;
+
+sub read_file {
+    my $file = shift;
+    sysopen my $fh, $file, 0 or do {
+        warn "$file: $!\n";
+        return;
+    };
+    sysread $fh, my $results, -s $fh || 4096; # use 4k for /proc files
+    close $fh;
+    return $results;
+}
+
