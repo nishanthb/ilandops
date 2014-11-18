@@ -8,3 +8,5 @@ TAG
 .\#*
 proj/JumpStart2/images
 proj/JumpStart2/logs/make.log
+proj/JumpStart2/out/dhcpd/*
+!proj/JumpStart2/out/dhcpd/.takeposition
