@@ -687,7 +687,7 @@ sub generate_scripts {
 	my $tabletype = 'msdos';
 	$tabletype = 'gpt' if($disksize > (1024*1024*2-1));
 	my @parted = ("parted -s /dev/$disk mklabel $tabletype");
-	push @parted, "sync;sleep 1;sync";
+	push @parted, "sync;sleep 1;sync;partprobe";
         
 	my @mkfs = ();
 	my @fstab = ();
@@ -695,7 +695,7 @@ sub generate_scripts {
 	my $extra = $disksize - $taken - $requested; # how much is left over
 	$extra /= ($filldisks || 1); # have to share
         
-	my $startpos = "0%";
+	my $startpos = 0;
         
 	# pass 2: actually allocate the disk sizes
 	my $i = 0;
@@ -729,11 +729,19 @@ sub generate_scripts {
 		  "parted -s /dev/$disk mkpart extended $startpos $disksize"
 		    if($i == 4);
 	    }
+
+	    if ($startpos == 0) {
+		push @parted,
+		"parted -s /dev/$disk mkpart $type ${startpos}% " .
+		    ($startpos + $size);
+		$startpos += $size;
+	    } else {
+		push @parted,
+		"parted -s /dev/$disk mkpart $type $startpos " .
+		    ($startpos + $size);
+		$startpos += $size;
+	    }
             
-	    push @parted,
-	      "parted -s /dev/$disk mkpart $type $startpos " .
-		($startpos + $size);
-	    $startpos += $size;
             
 	    if(my $fstype = lc $partition->{$name}->{fstype}) {
 		my $mkfsopts = $partition->{$name}->{mkfsopts} || '';
@@ -745,7 +753,7 @@ sub generate_scripts {
                                 $partition->{$name}->{mountpoint} eq '/');
                 }
                 
-                # nuke disk labels (bz#2116048)
+                # nuke disk labels 
                 push @mkfs, "dd if=/dev/zero of=/dev/$pname count=4096";
 
 		if($fstype eq 'ext3') {

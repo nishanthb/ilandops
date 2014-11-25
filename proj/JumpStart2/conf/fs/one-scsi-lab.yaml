@@ -1,0 +1,17 @@
+blockdev:
+  - scsidisk0:
+      candidates: scsi
+      partitions:
+        - part1:
+            size: 6G
+            fstype: ext3
+            mountpoint: '/'
+            label: '/'
+        - part2:
+            size: 2G
+            fstype: swap 
+        - part3:
+            minsize: 10M
+            fstype: ext3
+            mountpoint: '/export/crawlspace'
+            label: 'HOME'

@@ -18,7 +18,8 @@ IBMTEST-CENTOS65
 
 IBMTEST-CENTOS65-DISK-2G
     based-on = RHEL6,IBM_SERIAL0
-    fs-layout = one-scsi-lab.fs
+    fs-layout = one-scsi-lab.yaml
+#    fs-layout = one-scsi-lab.fs
     cpus = *
     enforce-yst-layout = no
     hyperthreading = *
