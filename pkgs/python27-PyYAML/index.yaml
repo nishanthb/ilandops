@@ -1,8 +1,0 @@
----
-default:
-  name: python27-PyYAML
-  pypi: PyYAML
-  python: /usr/local/bin/python
-  summary: "python27 PyYAML"
-  version: 3.11
-  release: 1

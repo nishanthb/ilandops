@@ -1,8 +1,0 @@
----
-default:
-  name: python27-jinja2
-  pypi: Jinja2
-  python: /usr/local/bin/python
-  summary: "python27 Jinja2"
-  version: 2.7.3
-  release: 1

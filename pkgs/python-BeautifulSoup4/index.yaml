@@ -1,8 +1,0 @@
----
-default:
-  name: python27-BeautifulSoup4
-  pypi: beautifulsoup4
-  python: /usr/local/bin/python
-  summary: "python27 beautifulsoup4"
-  version: 4.3.2
-  release: 1

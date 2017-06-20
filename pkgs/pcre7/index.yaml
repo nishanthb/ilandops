@@ -1,8 +1,0 @@
----
-default:
-  name: pcre7
-  summary: pcre for librange building
-  version: '7.8'
-  release: 1
-  http: http://zhouchang.net/dl/misc/pcre7-7.8.tar.gz
-

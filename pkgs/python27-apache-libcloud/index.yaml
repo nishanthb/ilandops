@@ -1,8 +1,0 @@
----
-default:
-  name: python27-apache-libcloud
-  pypi: apache-libcloud
-  python: /usr/local/bin/python
-  summary: "python27 salt"
-  version: 0.16.0
-  release: 1

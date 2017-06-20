@@ -1,7 +1,0 @@
-#!/bin/sh
-
-CFLAGS='-fPIC -g' CXXFLAGS='-fPIC -g' ./configure --enable-utf8 --enable-unicode-properties  --prefix=/usr/local || exit 1
-make || exit 1
-mkdir -p $DESTDIR/usr/local || exit 1
-make install DESTDIR=$DESTDIR INSTALLROOT=$DESTDIR || exit 1
-rm -rf $DESTDIR/usr/local/share

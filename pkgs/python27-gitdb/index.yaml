@@ -1,8 +1,0 @@
----
-default:
-  name: python27-gitdb
-  pypi: gitdb
-  python: /usr/local/bin/python
-  summary: "python27 gitdb"
-  version: 0.6.0
-  release: 1

@@ -8,7 +8,7 @@ default:
   summary: Binaries for ucspi-tcp
   version: '0.88'
   release: 1
-  http: http://zhouchang.net/dl/misc/ucspi-tcp-0.88.tar.gz
+  http: https://cr.yp.to/ucspi-tcp/ucspi-tcp-0.88.tar.gz
 x86_64:
  nobuild: 1
  preferarch: i386

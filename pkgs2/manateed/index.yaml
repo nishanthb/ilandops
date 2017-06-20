@@ -1,0 +1,20 @@
+---
+default:
+  name: manateed
+  summary: Allow remote execution of commands for cluster administration.
+  version: '2.4.9'
+  filetransforms:
+    /usr/local/manateed/VERSION:
+      - version: %version%
+      - release: %release%
+
+
+deb:
+  requires:
+    - perl
+    - daemontools
+    - ucspi-tcp
+    - cpan-tie-syslog
+    - libfile-slurp-perl
+    - libyaml-perl
+

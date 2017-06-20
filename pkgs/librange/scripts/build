@@ -1,9 +1,0 @@
-#!/bin/sh
-
-./configure --prefix=$PREFIX || exit 1
-make || exit 1
-mkdir -p $DESTDIR/usr/lib || exit 1
-mkdir -p $DESTDIR/usr/include || exit 1
-install range.h $DESTDIR/usr/include/
-install librange.so $DESTDIR/usr/lib/
-

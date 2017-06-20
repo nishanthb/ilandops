@@ -1,0 +1,7 @@
+---
+default:
+  name: cpan-tie-syslog
+  cpan-module: Tie::Syslog
+  summary: "CPAN Tie Syslog"
+  perl: /usr/bin/perl
+  release: 1

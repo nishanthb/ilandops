@@ -1,8 +1,0 @@
----
-default:
-  name: python27-msgpack
-  pypi: msgpack-python
-  python: /usr/local/bin/python
-  summary: "python27 msgpack-python"
-  version: 0.1.12
-  release: 1

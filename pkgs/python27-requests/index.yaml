@@ -1,8 +1,0 @@
----
-default:
-  name: python27-requests
-  pypi: requests
-  python: /usr/local/bin/python
-  summary: "python27 requests"
-  version: 2.4.3
-  release: 1

@@ -1,8 +1,0 @@
----
-default:
-  name: ocamlpcre62
-  summary: ocaml pcre library.
-  version: '6.2.5'
-  release: 1
-  http: http://zhouchang.net/dl/misc/ocamlpcre62-6.2.5.tar.gz
-

@@ -1,7 +1,0 @@
-#!/bin/sh
-
-./configure --prefix=/home/tops
-make
-mkdir -p $DESTDIR/home/tops/bin
-cp ./static-python $DESTDIR/home/tops/bin/
-make install DESTDIR=$DESTDIR
