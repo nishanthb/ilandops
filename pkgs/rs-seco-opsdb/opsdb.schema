@@ -1,0 +1,84 @@
+
+-- CREATE TABLE node (
+        -- node_id integer(10) NOT NULL,
+        -- name VARCHAR(255),
+        -- ytag VARCHAR(32),
+        -- type_id integer(10),
+        -- status varchar(32) NOT NULL,
+        -- parent_id integer(10),
+        -- prop_id integer(10),
+        -- site_id integer(10),
+        -- backplane CHAR(1),
+	-- backplane_id integer(10),
+        -- model_id integer(10),
+        -- rrc_id integer(10),
+        -- os_id integer(10),
+        -- serialno VARCHAR(32),
+        -- locroom integer(10),
+        -- loccage integer(10),
+        -- locarea VARCHAR(8),
+        -- locrow CHAR(2),
+        -- locrack integer(10),
+        -- locside char(1),
+        -- locshelf integer(3),
+        -- racksize INTEGER(2),
+        -- bootbox_id integer(10),
+        -- bport integer(10),
+        -- bmodule integer(10),
+        -- bplug integer(10),
+        -- bootbox2_id integer(10),
+        -- bport2 integer(10),
+        -- bmodule2 integer(10),
+        -- bplug2 integer(10),
+        -- console_id integer(10),
+        -- cport integer(10),
+        -- netswitch_id integer(10),
+        -- sport integer(10),
+        -- ponumber VARCHAR(32),
+        -- notes TEXT,
+	-- pdu VARCHAR(255),
+        -- c_time integer(10) NOT NULL,
+        -- m_time integer(14) NOT NULL,
+        -- s_time integer(10) NOT NULL,
+        -- UNIQUE (node_id),
+        -- UNIQUE (name),
+        -- UNIQUE (ytag));
+
+CREATE TABLE dictionary (
+        dict_id integer(10) NOT NULL,
+        name varchar(32) NOT NULL,
+        description varchar(64) NOT NULL,
+        label varchar(32) ,
+        parent_id integer(10) NOT NULL,
+        order_num integer(10) NOT NULL,
+        UNIQUE (dict_id),
+        UNIQUE (name, parent_id));
+
+CREATE TABLE model (
+        model_id integer(10) NOT NULL,
+        name varchar(128) NOT NULL,
+        temp_type_id integer(10),
+        description varchar(255) NOT NULL,
+        company_id integer(10),
+        max REAL NOT NULL,
+        min REAL NOT NULL,
+        is_qualified integer(1) NOT NULL,
+        c_time integer(10) NOT NULL,
+        m_time integer(14) NOT NULL,
+	UNIQUE (model_id),
+        UNIQUE (name, company_id));
+
+CREATE TABLE mac (
+        node_id integer(8) not null,
+        mac char(17) not null,
+        type_dict_id interger(10),
+	is_autodetected integer(1),
+
+insert or replace into mac (node_id,mac) values (0,'52:54:00:12:34:56');
+insert or replace into model (model_id,name,description,max,min,is_qualified,c_time,m_time) values (0,'QEMU','Qemu Virtual Machine',0.9,0.1,1,strftime('%Y-%m-%d %H:%M:%S','now'),strftime('%Y-%m-%d %H:%M:%S','now'));
+
+insert or replace into node (node_id,name,type_id,model_id,parent_id,status,c_time,m_time,s_time) values (0,'tq9001.rangestack.com',0,0,0,'testing',strftime('%s','now'),strftime('%Y-%m-%d %H:%M:%S','now'),strftime('%s','now'));
+
+insert or replace into dictionary (dict_id,name,description,label,parent_id,order_num) values (0,'vm','Virtual Machine','no-lable',0,0);
+
+
