@@ -1,15 +1,12 @@
 ---
 default:
-  build: '1'
   name: ucspi-tcp
   release: '1'
   requires: 
-    - daemontools076
+    - tops-daemontools
   summary: Binaries for ucspi-tcp
   version: '0.88'
   release: 1
   http: https://cr.yp.to/ucspi-tcp/ucspi-tcp-0.88.tar.gz
-x86_64:
- nobuild: 1
- preferarch: i386
+
 
